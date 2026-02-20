@@ -1,4 +1,5 @@
 using System;
+using System.ComponentModel;
 using System.Drawing;
 using System.Windows;
 using System.Windows.Input;
@@ -9,19 +10,26 @@ namespace FocusPanel.Views
 {
     public partial class MainWindow : Window
     {
+        private bool _isExit = false;
+
         public MainWindow()
         {
             InitializeComponent();
-            DataContext = new MainViewModel();
+            var viewModel = new MainViewModel();
+            viewModel.RequestClose += () => this.ForceClose();
+            DataContext = viewModel;
 
             // Use system icon since App.ico is missing
             MyNotifyIcon.Icon = SystemIcons.Application;
             
-            // Set to Maximized to cover the full screen
+            // Set to Maximized to cover the full screen or desired state
+            // If ShowInTaskbar is false, users might want it Normal or Maximized depending on design.
+            // Keeping it Maximized as per original design.
             WindowStartupLocation = WindowStartupLocation.Manual;
             WindowState = WindowState.Maximized;
             
             Loaded += MainWindow_Loaded;
+            Closing += MainWindow_Closing;
         }
 
         private void MainWindow_Loaded(object sender, RoutedEventArgs e)
@@ -29,8 +37,29 @@ namespace FocusPanel.Views
             this.Topmost = false; 
         }
 
+        private void MainWindow_Closing(object sender, CancelEventArgs e)
+        {
+            if (!_isExit)
+            {
+                e.Cancel = true;
+                this.Hide(); // Hide the window
+                // Or: this.WindowState = WindowState.Minimized;
+            }
+        }
+
+        public void ForceClose()
+        {
+            _isExit = true;
+            Close();
+        }
+
         private void Window_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {
+            // Allow dragging if not maximized
+            if (WindowState != WindowState.Maximized)
+            {
+                DragMove();
+            }
         }
 
         private void Sidebar_MouseEnter(object sender, MouseEventArgs e)
@@ -55,6 +84,15 @@ namespace FocusPanel.Views
 
         private void Sidebar_MouseLeave(object sender, MouseEventArgs e)
         {
+            if (SidebarBorder.IsKeyboardFocusWithin)
+            {
+                return;
+            }
+            CollapseSidebar();
+        }
+
+        private void CollapseSidebar()
+        {
             DoubleAnimation widthAnimation = new DoubleAnimation
             {
                 To = 80,
@@ -71,6 +109,14 @@ namespace FocusPanel.Views
             };
             HeaderGrid.BeginAnimation(OpacityProperty, opacityAnimation);
             ContentArea.BeginAnimation(OpacityProperty, opacityAnimation);
+        }
+
+        private void Sidebar_IsKeyboardFocusWithinChanged(object sender, DependencyPropertyChangedEventArgs e)
+        {
+            if (!(bool)e.NewValue && !SidebarBorder.IsMouseOver)
+            {
+                CollapseSidebar();
+            }
         }
     }
 }

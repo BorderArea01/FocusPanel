@@ -17,6 +17,7 @@
         Background="Transparent"
         AllowsTransparency="True"
         WindowStyle="None"
+        ShowInTaskbar="False"
         ResizeMode="CanResizeWithGrip"
         FontFamily="{DynamicResource MaterialDesignFont}"
         Title="{Binding Title}" Height="600" Width="300"
@@ -50,7 +51,8 @@
         <!-- Taskbar Icon -->
         <tb:TaskbarIcon x:Name="MyNotifyIcon"
                         ToolTipText="FocusPanel"
-                        MenuActivation="LeftOrRightClick">
+                        MenuActivation="LeftOrRightClick"
+                        DoubleClickCommand="{Binding ShowWindowCommand}">
             <tb:TaskbarIcon.ContextMenu>
                 <ContextMenu>
                     <MenuItem Header="Show FocusPanel" Command="{Binding ShowWindowCommand}" />
@@ -83,7 +85,8 @@
                     BorderThickness="1,1,0,1"
                     ClipToBounds="True"
                     MouseEnter="Sidebar_MouseEnter"
-                    MouseLeave="Sidebar_MouseLeave">
+                    MouseLeave="Sidebar_MouseLeave"
+                    IsKeyboardFocusWithinChanged="Sidebar_IsKeyboardFocusWithinChanged">
  
                  <Border.OpacityMask>
                     <VisualBrush>

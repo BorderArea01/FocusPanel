@@ -1,5 +1,6 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using FocusPanel.Services;
 using System.Windows;
 
 namespace FocusPanel.ViewModels;
@@ -14,7 +15,9 @@ public partial class MainViewModel : ObservableObject
 
     public MainViewModel()
     {
-        CurrentViewModel = new DashboardViewModel();
+        CurrentViewModel = new TasksViewModel();
+        // Enable auto-startup by default
+        AutoStartupService.SetStartup(true);
     }
 
     [RelayCommand]
@@ -40,15 +43,29 @@ public partial class MainViewModel : ObservableObject
         }
     }
 
+    public event System.Action RequestClose;
+
     [RelayCommand]
     private void CloseApp()
     {
-        Application.Current.Shutdown();
+        RequestClose?.Invoke();
     }
 
     [RelayCommand]
     private void MinimizeApp()
     {
         Application.Current.MainWindow.WindowState = WindowState.Minimized;
+    }
+
+    [RelayCommand]
+    private void ShowWindow()
+    {
+        var window = Application.Current.MainWindow;
+        if (window != null)
+        {
+            window.Show();
+            window.WindowState = WindowState.Normal;
+            window.Activate();
+        }
     }
 }
