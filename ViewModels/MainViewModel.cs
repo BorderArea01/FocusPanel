@@ -1,3 +1,4 @@
+using System;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using FocusPanel.Services;
@@ -13,8 +14,17 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty]
     private object currentViewModel;
 
+    [ObservableProperty]
+    private DateTime currentTime;
+
     public MainViewModel()
     {
+        CurrentTime = DateTime.Now;
+        var timer = new System.Windows.Threading.DispatcherTimer();
+        timer.Interval = System.TimeSpan.FromSeconds(1);
+        timer.Tick += (s, e) => CurrentTime = DateTime.Now;
+        timer.Start();
+
         CurrentViewModel = new TasksViewModel();
         // Enable auto-startup by default
         AutoStartupService.SetStartup(true);
