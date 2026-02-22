@@ -17,6 +17,8 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty]
     private DateTime currentTime;
 
+    private PomodoroViewModel _pomodoroViewModel;
+
     public MainViewModel()
     {
         CurrentTime = DateTime.Now;
@@ -42,7 +44,8 @@ public partial class MainViewModel : ObservableObject
                 CurrentViewModel = new TasksViewModel();
                 break;
             case "Pomodoro":
-                CurrentViewModel = new PomodoroViewModel();
+                if (_pomodoroViewModel == null) _pomodoroViewModel = new PomodoroViewModel();
+                CurrentViewModel = _pomodoroViewModel;
                 break;
             case "Files":
                 CurrentViewModel = new FileOrganizerViewModel();

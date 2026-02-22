@@ -1,7 +1,105 @@
 <UserControl x:Class="FocusPanel.Views.PomodoroView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
+             xmlns:viewmodels="clr-namespace:FocusPanel.ViewModels"
+             mc:Ignorable="d" 
+             d:DataContext="{d:DesignInstance Type=viewmodels:PomodoroViewModel}">
     <Grid>
-        <TextBlock Text="Pomodoro" HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="24"/>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Status Message -->
+        <TextBlock Text="{Binding StatusMessage}" 
+                   FontSize="18" 
+                   HorizontalAlignment="Center" 
+                   Margin="0,20,0,10"
+                   Foreground="{DynamicResource MaterialDesignBody}"
+                   Opacity="0.7"/>
+
+        <!-- Timer Circle -->
+        <Grid Grid.Row="1" HorizontalAlignment="Center" VerticalAlignment="Center">
+            <!-- Background Circle -->
+            <Ellipse Width="220" Height="220" Stroke="{DynamicResource MaterialDesignDivider}" StrokeThickness="8"/>
+            
+            <!-- Progress Arc -->
+            <ProgressBar Value="{Binding Progress}" Maximum="100" Minimum="0"
+                         Style="{StaticResource MaterialDesignCircularProgressBar}"
+                         Width="220" Height="220"
+                         Foreground="{DynamicResource SecondaryHueMidBrush}"
+                         Background="Transparent"
+                         BorderThickness="8"/>
+            
+            <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
+                <TextBlock Text="{Binding TimerDisplay}" 
+                           FontSize="48" 
+                           FontWeight="Light" 
+                           HorizontalAlignment="Center"
+                           Foreground="{DynamicResource MaterialDesignBody}"/>
+                <TextBlock Text="MIN" 
+                           FontSize="12" 
+                           HorizontalAlignment="Center" 
+                           Foreground="{DynamicResource MaterialDesignBody}"
+                           Opacity="0.5"
+                           Margin="0,-5,0,0"/>
+            </StackPanel>
+        </Grid>
+
+        <!-- Stats Section -->
+        <Grid Grid.Row="2" Margin="0,0,0,30">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <StackPanel Grid.Column="0" HorizontalAlignment="Center">
+                <TextBlock Text="{Binding CompletedPomodoros}" FontSize="24" FontWeight="Bold" HorizontalAlignment="Center" Foreground="{DynamicResource PrimaryHueMidBrush}"/>
+                <TextBlock Text="Pomodoros" FontSize="12" Opacity="0.6" HorizontalAlignment="Center" Foreground="{DynamicResource MaterialDesignBody}"/>
+            </StackPanel>
+            
+            <Border Grid.Column="1" Width="1" Height="30" Background="{DynamicResource MaterialDesignDivider}" Margin="20,0"/>
+            
+            <StackPanel Grid.Column="2" HorizontalAlignment="Center">
+                <TextBlock Text="{Binding TotalFocusMinutes, StringFormat={}{0:0.#}}" FontSize="24" FontWeight="Bold" HorizontalAlignment="Center" Foreground="{DynamicResource PrimaryHueMidBrush}"/>
+                <TextBlock Text="Focus Minutes" FontSize="12" Opacity="0.6" HorizontalAlignment="Center" Foreground="{DynamicResource MaterialDesignBody}"/>
+            </StackPanel>
+        </Grid>
+
+        <!-- Controls -->
+        <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,0,0,40">
+            <Button Command="{Binding StartCommand}" 
+                    Style="{StaticResource MaterialDesignFloatingActionMiniButton}"
+                    ToolTip="Start Focus"
+                    Margin="10" 
+                    Background="{DynamicResource PrimaryHueMidBrush}" 
+                    BorderBrush="{DynamicResource PrimaryHueMidBrush}">
+                <materialDesign:PackIcon Kind="Play" Width="24" Height="24"/>
+            </Button>
+            
+            <Button Command="{Binding PauseCommand}" 
+                    Style="{StaticResource MaterialDesignFloatingActionMiniButton}"
+                    ToolTip="Pause"
+                    Margin="10" 
+                    Background="{DynamicResource SecondaryHueMidBrush}" 
+                    BorderBrush="{DynamicResource SecondaryHueMidBrush}">
+                <materialDesign:PackIcon Kind="Pause" Width="24" Height="24"/>
+            </Button>
+            
+            <Button Command="{Binding ResetCommand}" 
+                    Style="{StaticResource MaterialDesignFloatingActionMiniButton}"
+                    ToolTip="Reset"
+                    Margin="10" 
+                    Background="#F44336" 
+                    BorderBrush="#F44336">
+                <materialDesign:PackIcon Kind="Stop" Width="24" Height="24"/>
+            </Button>
+        </StackPanel>
     </Grid>
 </UserControl>
