@@ -9,7 +9,8 @@ public class AppDbContext : DbContext
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
-        optionsBuilder.UseSqlite("Data Source=focuspanel.db");
+        string dbPath = System.IO.Path.Combine(System.AppDomain.CurrentDomain.BaseDirectory, "focuspanel.db");
+        optionsBuilder.UseSqlite($"Data Source={dbPath}");
     }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)

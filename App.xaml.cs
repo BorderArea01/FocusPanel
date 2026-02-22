@@ -19,6 +19,10 @@ public partial class App : Application
     {
         base.OnStartup(e);
 
+        // Set working directory to the application's base directory
+        // This ensures that relative paths (like database file) work correctly regardless of how the app was started
+        System.IO.Directory.SetCurrentDirectory(System.AppDomain.CurrentDomain.BaseDirectory);
+
         try
         {
             // Initialize Database
