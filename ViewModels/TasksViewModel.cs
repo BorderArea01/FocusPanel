@@ -101,8 +101,19 @@ public partial class TasksViewModel : ObservableObject
         LoadCurrentViewItemsCommand.Execute(null);
     }
 
-    async partial void OnCurrentParentItemChanged(TodoItem value)
+    private async void OnTodoItemPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
+        if (sender is TodoItem item)
+        {
+            await _taskService.UpdateItemAsync(item);
+        }
+    }
+
+    async partial void OnCurrentParentItemChanged(TodoItem? oldValue, TodoItem newValue)
+    {
+        if (oldValue != null) oldValue.PropertyChanged -= OnTodoItemPropertyChanged;
+        if (newValue != null) newValue.PropertyChanged += OnTodoItemPropertyChanged;
+
         OnPropertyChanged(nameof(CanGoBack));
         OnPropertyChanged(nameof(IsProjectSelected));
         UpdateViewMode();
@@ -304,7 +315,7 @@ public partial class TasksViewModel : ObservableObject
         }
     }
 
-    private async void OnCustomFieldValueChanged(string fieldId, string newValue)
+    private void OnCustomFieldValueChanged(string fieldId, string newValue)
     {
         if (SelectedTask == null) return;
         
@@ -320,8 +331,8 @@ public partial class TasksViewModel : ObservableObject
         values[fieldId] = newValue;
         SelectedTask.CustomValuesJson = JsonSerializer.Serialize(values);
         
-        // Save Task
-        await _taskService.UpdateItemAsync(SelectedTask);
+        // Save Task handled by PropertyChanged
+        // await _taskService.UpdateItemAsync(SelectedTask);
     }
 
     // --- Settings Logic ---
@@ -388,6 +399,10 @@ public partial class TasksViewModel : ObservableObject
     [RelayCommand]
     private async Task LoadCurrentViewItems()
     {
+        foreach (var item in CurrentViewItems)
+        {
+            item.PropertyChanged -= OnTodoItemPropertyChanged;
+        }
         CurrentViewItems.Clear();
         
         List<TodoItem> items;
@@ -402,6 +417,7 @@ public partial class TasksViewModel : ObservableObject
 
         foreach (var t in items)
         {
+            t.PropertyChanged += OnTodoItemPropertyChanged;
             CurrentViewItems.Add(t);
         }
     }
@@ -424,6 +440,7 @@ public partial class TasksViewModel : ObservableObject
         };
 
         await _taskService.AddItemAsync(task);
+        task.PropertyChanged += OnTodoItemPropertyChanged;
         
         if (IsListView)
         {
@@ -440,8 +457,9 @@ public partial class TasksViewModel : ObservableObject
     [RelayCommand]
     private async Task ToggleTask(TodoItem task)
     {
+        // PropertyChanged event handles the save, but we keep this command for explicit UI actions if needed
         if (task == null) return;
-        await _taskService.UpdateItemAsync(task);
+        // await _taskService.UpdateItemAsync(task); // Redundant if PropertyChanged handles it
     }
 
     [RelayCommand]
@@ -459,6 +477,7 @@ public partial class TasksViewModel : ObservableObject
         if (result != MessageBoxResult.Yes) return;
 
         await _taskService.DeleteItemAsync(item);
+        item.PropertyChanged -= OnTodoItemPropertyChanged;
         
         if (IsListView)
         {

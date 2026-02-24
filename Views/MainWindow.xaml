@@ -88,18 +88,7 @@
                     MouseLeave="Sidebar_MouseLeave"
                     IsKeyboardFocusWithinChanged="Sidebar_IsKeyboardFocusWithinChanged">
  
-                 <Border.OpacityMask>
-                    <VisualBrush>
-                        <VisualBrush.Visual>
-                            <Border Background="Black" SnapsToDevicePixels="True"
-                                    CornerRadius="{Binding CornerRadius, RelativeSource={RelativeSource AncestorType=Border}}"
-                                    Width="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Border}}"
-                                    Height="{Binding ActualHeight, RelativeSource={RelativeSource AncestorType=Border}}" />
-                        </VisualBrush.Visual>
-                    </VisualBrush>
-                </Border.OpacityMask>
-                
-                <Grid>
+                <Grid Width="800" HorizontalAlignment="Left">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="*"/>

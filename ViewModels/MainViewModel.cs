@@ -18,6 +18,7 @@ public partial class MainViewModel : ObservableObject
     private DateTime currentTime;
 
     private PomodoroViewModel _pomodoroViewModel;
+    private FileOrganizerViewModel _fileOrganizerViewModel;
 
     public MainViewModel()
     {
@@ -48,7 +49,8 @@ public partial class MainViewModel : ObservableObject
                 CurrentViewModel = _pomodoroViewModel;
                 break;
             case "Files":
-                CurrentViewModel = new FileOrganizerViewModel();
+                if (_fileOrganizerViewModel == null) _fileOrganizerViewModel = new FileOrganizerViewModel();
+                CurrentViewModel = _fileOrganizerViewModel;
                 break;
             case "AI":
                 CurrentViewModel = new AIAssistantViewModel();

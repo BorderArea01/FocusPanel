@@ -1,3 +1,4 @@
+using CommunityToolkit.Mvvm.ComponentModel;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
@@ -13,15 +14,17 @@ public enum ProjectViewMode
     Board
 }
 
-public class TodoItem
+public partial class TodoItem : ObservableValidator
 {
     [Key]
     public int Id { get; set; }
     
+    [ObservableProperty]
     [Required]
-    public string Title { get; set; } = string.Empty;
+    private string title = string.Empty;
     
-    public bool IsCompleted { get; set; }
+    [ObservableProperty]
+    private bool isCompleted;
     
     public DateTime CreatedAt { get; set; } = DateTime.Now;
 
@@ -35,24 +38,30 @@ public class TodoItem
     // --- Task-Specific Properties ---
     
     // Current status in Kanban board (e.g., "To Do", "In Progress")
-    public string Status { get; set; } = "To Do";
+    [ObservableProperty]
+    private string status = "To Do";
 
     // JSON string storing values for custom fields
     // e.g. {"Priority": "High", "Due Date": "2023-12-31"}
-    public string CustomValuesJson { get; set; } = "{}";
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CoverImage))]
+    private string customValuesJson = "{}";
 
 
     // --- Project-Specific Properties (Used when ParentId is null) ---
 
-    public ProjectViewMode ViewMode { get; set; } = ProjectViewMode.List;
+    [ObservableProperty]
+    private ProjectViewMode viewMode = ProjectViewMode.List;
     
     // JSON string storing column definitions for Kanban (e.g., ["To Do", "In Progress", "Done"])
     // Also serves as the schema for status options.
-    public string ColumnsJson { get; set; } = "[\"To Do\", \"In Progress\", \"Done\"]";
+    [ObservableProperty]
+    private string columnsJson = "[\"To Do\", \"In Progress\", \"Done\"]";
 
     // JSON string storing custom field definitions
     // e.g. [{"Name":"Priority", "Type":"Select", "Options":["High","Low"]}, {"Name":"Due Date", "Type":"Date"}]
-    public string CustomFieldsJson { get; set; } = "[]";
+    [ObservableProperty]
+    private string customFieldsJson = "[]";
 
     [NotMapped]
     public string CoverImage

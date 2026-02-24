@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Text.Json;
+using System.Collections.Generic;
 
 namespace FocusPanel.Services;
 
@@ -50,4 +51,6 @@ public class AppSettings
 {
     public string ImageSavePath { get; set; } = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Images");
     public string GlobalCustomFieldsJson { get; set; } = string.Empty;
+    public Dictionary<string, string> FilePartitions { get; set; } = new Dictionary<string, string>(); // FileName -> PartitionName
+    public List<string> CustomPartitionNames { get; set; } = new List<string>(); // Store partition names to persist empty ones
 }
