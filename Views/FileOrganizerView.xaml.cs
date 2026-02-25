@@ -4,6 +4,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
+using System.Windows.Threading;
 using FocusPanel.Models;
 using FocusPanel.ViewModels;
 
@@ -11,10 +12,25 @@ namespace FocusPanel.Views;
 
 public partial class FileOrganizerView : UserControl
 {
+    // Auto-scroll Timer
+    private DispatcherTimer _autoScrollTimer;
+    private double _scrollSpeed = 0;
+    private ScrollViewer _scrollViewer;
+
     public FileOrganizerView()
     {
         InitializeComponent();
-        // Removed SizeChanged handler as we are no longer using UniformGrid with dynamic columns
+        _autoScrollTimer = new DispatcherTimer();
+        _autoScrollTimer.Interval = TimeSpan.FromMilliseconds(20);
+        _autoScrollTimer.Tick += AutoScrollTimer_Tick;
+    }
+
+    private void AutoScrollTimer_Tick(object sender, EventArgs e)
+    {
+        if (_scrollViewer != null && _scrollSpeed != 0)
+        {
+            _scrollViewer.ScrollToVerticalOffset(_scrollViewer.VerticalOffset + _scrollSpeed);
+        }
     }
 
     private void FileCard_MouseMove(object sender, MouseEventArgs e)
@@ -29,18 +45,40 @@ public partial class FileOrganizerView : UserControl
         }
     }
 
-    private void Partition_DragEnter(object sender, DragEventArgs e)
-    {
-        if (sender is Border border)
-        {
-            border.BorderBrush = (Brush)FindResource("PrimaryHueMidBrush");
-            border.Background = (Brush)FindResource("MaterialDesignPaper"); // Ensure background is opaque for hit testing
-            // Keep thickness same to avoid jitter
-        }
-    }
-
     private void Partition_DragOver(object sender, DragEventArgs e)
     {
+        // ... (Existing logic) ...
+        
+        // Auto-scroll logic
+        if (_scrollViewer == null)
+        {
+             _scrollViewer = FindVisualChild<ScrollViewer>(this);
+        }
+
+        if (_scrollViewer != null)
+        {
+            Point position = e.GetPosition(_scrollViewer);
+            double height = _scrollViewer.ActualHeight;
+            double tolerance = 60; // Activation area height
+
+            if (position.Y < tolerance)
+            {
+                _scrollSpeed = -10; // Scroll up
+                if (!_autoScrollTimer.IsEnabled) _autoScrollTimer.Start();
+            }
+            else if (position.Y > height - tolerance)
+            {
+                _scrollSpeed = 10; // Scroll down
+                if (!_autoScrollTimer.IsEnabled) _autoScrollTimer.Start();
+            }
+            else
+            {
+                _scrollSpeed = 0;
+                _autoScrollTimer.Stop();
+            }
+        }
+        
+        // ... (Rest of visual feedback logic) ...
         // This is necessary to allow drop
         e.Effects = DragDropEffects.Move;
         e.Handled = true;
@@ -66,6 +104,34 @@ public partial class FileOrganizerView : UserControl
              }
         }
     }
+    
+    // Helper to find ScrollViewer
+    private static T FindVisualChild<T>(DependencyObject parent) where T : DependencyObject
+    {
+        for (int i = 0; i < VisualTreeHelper.GetChildrenCount(parent); i++)
+        {
+            DependencyObject child = VisualTreeHelper.GetChild(parent, i);
+            if (child != null && child is T)
+                return (T)child;
+            else
+            {
+                T childOfChild = FindVisualChild<T>(child);
+                if (childOfChild != null)
+                    return childOfChild;
+            }
+        }
+        return null;
+    }
+
+    private void Partition_DragEnter(object sender, DragEventArgs e)
+    {
+        if (sender is Border border)
+        {
+            border.BorderBrush = (Brush)FindResource("PrimaryHueMidBrush");
+            border.Background = (Brush)FindResource("MaterialDesignPaper"); // Ensure background is opaque for hit testing
+            // Keep thickness same to avoid jitter
+        }
+    }
 
     private void Partition_DragLeave(object sender, DragEventArgs e)
     {
@@ -75,6 +141,16 @@ public partial class FileOrganizerView : UserControl
             border.BorderThickness = new Thickness(0, 2, 0, 0); // Restore default
             border.Background = Brushes.Transparent; 
         }
+        
+        // Stop scroll if leaving the container (optional, but safer)
+        // However, DragLeave fires when entering children too, so we can't blindly stop.
+    }
+    
+    private void UserControl_DragLeave(object sender, DragEventArgs e)
+    {
+         // Stop auto-scroll when leaving the entire control
+         _scrollSpeed = 0;
+         _autoScrollTimer.Stop();
     }
 
     private void Partition_Drop(object sender, DragEventArgs e)

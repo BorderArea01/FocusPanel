@@ -296,20 +296,32 @@ public partial class FileOrganizerViewModel : ObservableObject
                 }
 
                 // 5. Create Default Categories (if needed)
+                // Removed per user request: No default partitions, only custom ones.
+                
                 if (IsPersonalizedView)
                 {
-                    var categoryGroups = uncategorizedFiles.GroupBy(f => f.FileType).OrderBy(g => g.Key);
-                    int i = 0;
-                    foreach (var group in categoryGroups)
-                    {
-                        // Default distribution: Even to Col0, Odd to Col1 for NEW items
-                        int defaultCol = (i++ % 2);
-                        var p = new PartitionViewModel(group.Key) { IsCustom = false, ColumnIndex = defaultCol };
-                        foreach (var file in group) p.Files.Add(file);
-                        viewModels.Add(p);
-                    }
+                     // Only add uncategorized files if they are not assigned to any partition.
+                     // But user said "don't need default partitions", so we should probably put them in a catch-all "Unsorted" 
+                     // OR just not show them? Usually "not showing" is dangerous (lost files).
+                     // The safest approach is a single "Unsorted" group.
+                     
+                     if (uncategorizedFiles.Any())
+                     {
+                          var unsortedName = "Unsorted";
+                          if (partitionMap.TryGetValue(unsortedName, out var p))
+                          {
+                              foreach (var file in uncategorizedFiles) p.Files.Add(file);
+                          }
+                          else
+                          {
+                              // Create a transient "Unsorted" partition for display only
+                              p = new PartitionViewModel(unsortedName) { IsCustom = false, ColumnIndex = 0 };
+                              foreach (var file in uncategorizedFiles) p.Files.Add(file);
+                              viewModels.Add(p);
+                          }
+                     }
                 }
-                else // Timeline View
+                else // Timeline View (Keep as is)
                 {
                      var dateGroups = allFiles.GroupBy(f => f.DateGroup).OrderBy(g => GetDateGroupSortOrder(g.Key));
                      int i = 0;
