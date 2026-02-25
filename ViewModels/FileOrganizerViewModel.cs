@@ -2,6 +2,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using FocusPanel.Models;
 using FocusPanel.Services;
+using FocusPanel.Data;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Threading.Tasks;
@@ -9,6 +10,7 @@ using System.Windows.Data;
 using System.Linq;
 using System.Collections.Generic;
 using System;
+using System.Windows.Threading;
 
 namespace FocusPanel.ViewModels;
 
@@ -17,8 +19,12 @@ public partial class FileOrganizerViewModel : ObservableObject
     private readonly FileOrganizerService _fileService;
     private readonly SettingsService _settingsService;
 
-    // We no longer use FilesView with grouping. We use a list of partitions.
-    public ObservableCollection<PartitionViewModel> Partitions { get; } = new();
+    // Split partitions for Masonry/Staggered Layout
+    public ObservableCollection<PartitionViewModel> PartitionsCol1 { get; } = new();
+    public ObservableCollection<PartitionViewModel> PartitionsCol2 { get; } = new();
+    
+    // Master list for reference/search
+    public ObservableCollection<PartitionViewModel> AllPartitions { get; } = new();
 
     [ObservableProperty]
     private bool isPersonalizedView = true;
@@ -29,6 +35,18 @@ public partial class FileOrganizerViewModel : ObservableObject
     [ObservableProperty]
     private string newPartitionName;
     
+    // Rename Support
+    [ObservableProperty]
+    private bool isRenameDialogOpen;
+    
+    [ObservableProperty]
+    private string renamePartitionName;
+    
+    private PartitionViewModel _partitionToRename;
+
+    [ObservableProperty]
+    private PartitionViewModel selectedPartition;
+    
     [ObservableProperty]
     private DesktopFile selectedFile;
 
@@ -36,12 +54,142 @@ public partial class FileOrganizerViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(OrganizeButtonText))]
     [NotifyPropertyChangedFor(nameof(OrganizeButtonIcon))]
     private bool isDesktopHidden;
+    
+    [ObservableProperty]
+    private bool isListView = false;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CardWidth))]
     [NotifyPropertyChangedFor(nameof(CardHeight))]
     [NotifyPropertyChangedFor(nameof(IconImageSize))]
     private double iconScale = 1.0;
+
+    [RelayCommand]
+    private void SetIconScale(string scaleStr)
+    {
+        if (double.TryParse(scaleStr, out double scale))
+        {
+            IconScale = scale;
+            _settingsService.CurrentSettings.IconScale = scale;
+            _settingsService.SaveSettings();
+        }
+    }
+
+    partial void OnIconScaleChanged(double value)
+    {
+        _settingsService.CurrentSettings.IconScale = value;
+        _settingsService.SaveSettings();
+        SaveLayoutSettings();
+    }
+
+    partial void OnIsListViewChanged(bool value)
+    {
+        _settingsService.CurrentSettings.IsListView = value;
+        _settingsService.SaveSettings();
+        SaveLayoutSettings();
+    }
+    
+    partial void OnIsPersonalizedViewChanged(bool value)
+    {
+        _settingsService.CurrentSettings.IsPersonalizedView = value;
+        _settingsService.SaveSettings();
+        SaveLayoutSettings();
+    }
+    
+    private void SaveLayoutSettings()
+    {
+        try
+        {
+            using (var context = new AppDbContext())
+            {
+                // Save IconScale
+                var scaleConfig = context.AppConfigs.Find("FileOrganizer_IconScale");
+                if (scaleConfig == null)
+                {
+                    context.AppConfigs.Add(new AppConfig { Key = "FileOrganizer_IconScale", Value = IconScale.ToString() });
+                }
+                else
+                {
+                    scaleConfig.Value = IconScale.ToString();
+                }
+
+                // Save IsListView
+                var listConfig = context.AppConfigs.Find("FileOrganizer_IsListView");
+                if (listConfig == null)
+                {
+                    context.AppConfigs.Add(new AppConfig { Key = "FileOrganizer_IsListView", Value = IsListView.ToString() });
+                }
+                else
+                {
+                    listConfig.Value = IsListView.ToString();
+                }
+
+                // Save IsPersonalizedView
+                var viewConfig = context.AppConfigs.Find("FileOrganizer_IsPersonalizedView");
+                if (viewConfig == null)
+                {
+                    context.AppConfigs.Add(new AppConfig { Key = "FileOrganizer_IsPersonalizedView", Value = IsPersonalizedView.ToString() });
+                }
+                else
+                {
+                    viewConfig.Value = IsPersonalizedView.ToString();
+                }
+
+                context.SaveChanges();
+            }
+        }
+        catch { }
+    }
+    
+    private void LoadLayoutSettings()
+    {
+        try
+        {
+            using (var context = new AppDbContext())
+            {
+                // Load IconScale
+                var scaleConfig = context.AppConfigs.Find("FileOrganizer_IconScale");
+                if (scaleConfig != null && double.TryParse(scaleConfig.Value, out double scale))
+                {
+                    IconScale = scale;
+                }
+                else
+                {
+                    // Fallback to legacy settings
+                    IconScale = _settingsService.CurrentSettings.IconScale > 0 ? _settingsService.CurrentSettings.IconScale : 1.0;
+                }
+
+                // Load IsListView
+                var listConfig = context.AppConfigs.Find("FileOrganizer_IsListView");
+                if (listConfig != null && bool.TryParse(listConfig.Value, out bool isList))
+                {
+                    IsListView = isList;
+                }
+                else
+                {
+                    IsListView = _settingsService.CurrentSettings.IsListView;
+                }
+
+                // Load IsPersonalizedView
+                var viewConfig = context.AppConfigs.Find("FileOrganizer_IsPersonalizedView");
+                if (viewConfig != null && bool.TryParse(viewConfig.Value, out bool isPersonalized))
+                {
+                    IsPersonalizedView = isPersonalized;
+                }
+                else
+                {
+                    IsPersonalizedView = _settingsService.CurrentSettings.IsPersonalizedView;
+                }
+            }
+        }
+        catch 
+        {
+             // Fallback
+            IconScale = _settingsService.CurrentSettings.IconScale > 0 ? _settingsService.CurrentSettings.IconScale : 1.0;
+            IsListView = _settingsService.CurrentSettings.IsListView;
+            IsPersonalizedView = _settingsService.CurrentSettings.IsPersonalizedView;
+        }
+    }
 
     [ObservableProperty]
     private int partitionColumns = 1;
@@ -57,6 +205,8 @@ public partial class FileOrganizerViewModel : ObservableObject
     {
         _settingsService = new SettingsService();
         _fileService = new FileOrganizerService();
+        
+        LoadLayoutSettings();
         
         // Listen for file updates
         _fileService.FilesChanged += () => 
@@ -81,66 +231,124 @@ public partial class FileOrganizerViewModel : ObservableObject
 
     private void BuildPartitions()
     {
-        Partitions.Clear();
-        var allFiles = _fileService.Files;
-
-        // Apply Custom Partition Metadata first (ensure model is up to date)
-        ApplyCustomPartitionsMetadata();
-
-        if (IsPersonalizedView)
+        var viewModels = new List<PartitionViewModel>();
+        
+        try
         {
-            // 1. Create User Defined Partitions
-            var customNames = _settingsService.CurrentSettings.CustomPartitionNames ?? new List<string>();
-            var partitionMap = new Dictionary<string, PartitionViewModel>();
-
-            foreach (var name in customNames)
+            using (var context = new AppDbContext())
             {
-                var p = new PartitionViewModel(name) { IsCustom = true };
-                partitionMap[name] = p;
-                Partitions.Add(p);
-            }
+                context.EnsureSchema();
 
-            // 2. Distribute Files
-            var uncategorizedFiles = new List<DesktopFile>();
+                // 1. Migration (if DB empty but Settings exist)
+                if (!context.DesktopPartitions.Any() && _settingsService.CurrentSettings.CustomPartitionNames.Any())
+                {
+                    // Migrate Partitions
+                    int index = 0;
+                    foreach (var name in _settingsService.CurrentSettings.CustomPartitionNames)
+                    {
+                        context.DesktopPartitions.Add(new DesktopPartition { Name = name, OrderIndex = index++ });
+                    }
+                    
+                    // Migrate File Preferences
+                    foreach (var kvp in _settingsService.CurrentSettings.FilePartitions)
+                    {
+                        context.DesktopFilePreferences.Add(new DesktopFilePreference { FilePath = kvp.Key, PartitionName = kvp.Value });
+                    }
+                    
+                    context.SaveChanges();
+                }
 
-            foreach (var file in allFiles)
-            {
-                if (!string.IsNullOrEmpty(file.CustomPartition) && partitionMap.ContainsKey(file.CustomPartition))
-                {
-                    partitionMap[file.CustomPartition].Files.Add(file);
-                }
-                else
-                {
-                    uncategorizedFiles.Add(file);
-                }
-            }
+                // 2. Load Data
+                var dbPartitions = context.DesktopPartitions.OrderBy(p => p.OrderIndex).ToList();
+                var dbPrefs = context.DesktopFilePreferences.ToList(); 
 
-            // 3. Create Default Categories for Uncategorized Files
-            var categoryGroups = uncategorizedFiles.GroupBy(f => f.FileType).OrderBy(g => g.Key);
-            foreach (var group in categoryGroups)
-            {
-                var p = new PartitionViewModel(group.Key) { IsCustom = false };
-                foreach (var file in group)
+                // 3. Create Partition ViewModels
+                var partitionMap = new Dictionary<string, PartitionViewModel>();
+                
+                if (IsPersonalizedView)
                 {
-                    p.Files.Add(file);
+                    foreach (var p in dbPartitions)
+                    {
+                        var vm = new PartitionViewModel(p.Name) { IsCustom = true, ColumnIndex = p.ColumnIndex };
+                        partitionMap[p.Name] = vm;
+                        viewModels.Add(vm);
+                    }
                 }
-                Partitions.Add(p);
+
+                // 4. Distribute Files
+                var allFiles = _fileService.Files;
+                var uncategorizedFiles = new List<DesktopFile>();
+
+                foreach (var file in allFiles)
+                {
+                    var pref = dbPrefs.FirstOrDefault(p => p.FilePath == file.Name); 
+                    
+                    if (pref != null && partitionMap.ContainsKey(pref.PartitionName))
+                    {
+                        partitionMap[pref.PartitionName].Files.Add(file);
+                        file.CustomPartition = pref.PartitionName;
+                    }
+                    else
+                    {
+                        uncategorizedFiles.Add(file);
+                        file.CustomPartition = null;
+                    }
+                }
+
+                // 5. Create Default Categories (if needed)
+                if (IsPersonalizedView)
+                {
+                    var categoryGroups = uncategorizedFiles.GroupBy(f => f.FileType).OrderBy(g => g.Key);
+                    int i = 0;
+                    foreach (var group in categoryGroups)
+                    {
+                        // Default distribution: Even to Col0, Odd to Col1 for NEW items
+                        int defaultCol = (i++ % 2);
+                        var p = new PartitionViewModel(group.Key) { IsCustom = false, ColumnIndex = defaultCol };
+                        foreach (var file in group) p.Files.Add(file);
+                        viewModels.Add(p);
+                    }
+                }
+                else // Timeline View
+                {
+                     var dateGroups = allFiles.GroupBy(f => f.DateGroup).OrderBy(g => GetDateGroupSortOrder(g.Key));
+                     int i = 0;
+                     foreach (var group in dateGroups)
+                     {
+                         int defaultCol = (i++ % 2);
+                         var p = new PartitionViewModel(group.Key) { IsCustom = false, ColumnIndex = defaultCol };
+                         foreach (var file in group.OrderByDescending(f => f.CreatedAt)) p.Files.Add(file);
+                         viewModels.Add(p);
+                     }
+                }
             }
         }
-        else // Timeline View
+        catch (Exception ex)
         {
-            var dateGroups = allFiles.GroupBy(f => f.DateGroup)
-                                     .OrderBy(g => GetDateGroupSortOrder(g.Key)); // Need a sort helper
+            // Fallback or log
+            System.Diagnostics.Debug.WriteLine("BuildPartitions Error: " + ex.Message);
+        }
 
-            foreach (var group in dateGroups)
+        // 6. Update ObservableCollections
+        System.Windows.Application.Current.Dispatcher.Invoke(() =>
+        {
+            PartitionsCol1.Clear();
+            PartitionsCol2.Clear();
+            AllPartitions.Clear();
+
+            // Distribute based on explicit ColumnIndex
+            foreach (var vm in viewModels)
             {
-                var p = new PartitionViewModel(group.Key) { IsCustom = false };
-                foreach (var file in group.OrderByDescending(f => f.CreatedAt))
-                {
-                    p.Files.Add(file);
-                }
-                Partitions.Add(p);
+                AllPartitions.Add(vm);
+                if (vm.ColumnIndex == 0) PartitionsCol1.Add(vm);
+                else PartitionsCol2.Add(vm);
             }
+        });
+        
+        // Auto-select
+        if (AllPartitions.Any() && (SelectedPartition == null || !AllPartitions.Contains(SelectedPartition)))
+        {
+            SelectedPartition = AllPartitions.First();
         }
     }
 
@@ -155,24 +363,6 @@ public partial class FileOrganizerViewModel : ObservableObject
             "Older" => 4,
             _ => 5
         };
-    }
-
-    private void ApplyCustomPartitionsMetadata()
-    {
-        var partitions = _settingsService.CurrentSettings.FilePartitions;
-        if (partitions == null) return;
-
-        foreach (var file in _fileService.Files)
-        {
-            if (partitions.TryGetValue(file.Name, out var partition))
-            {
-                file.CustomPartition = partition;
-            }
-            else
-            {
-                file.CustomPartition = null;
-            }
-        }
     }
 
     [RelayCommand]
@@ -245,27 +435,26 @@ public partial class FileOrganizerViewModel : ObservableObject
     }
     
     [RelayCommand]
-    private void CreatePartition(string name = null) // Can be called with parameter or bound property
+    private void CreatePartition(string name = null)
     {
         string partitionName = name ?? NewPartitionName;
         
         if (string.IsNullOrWhiteSpace(partitionName)) return;
         
-        // Add to settings if not exists
-        if (!_settingsService.CurrentSettings.CustomPartitionNames.Contains(partitionName))
+        using (var context = new AppDbContext())
         {
-            _settingsService.CurrentSettings.CustomPartitionNames.Add(partitionName);
-            _settingsService.SaveSettings();
-            
-            // Rebuild to show new empty partition
-            if (IsPersonalizedView)
+            if (!context.DesktopPartitions.Any(p => p.Name == partitionName))
             {
+                int maxOrder = context.DesktopPartitions.Any() ? context.DesktopPartitions.Max(p => p.OrderIndex) : -1;
+                context.DesktopPartitions.Add(new DesktopPartition { Name = partitionName, OrderIndex = maxOrder + 1 });
+                context.SaveChanges();
+                
+                if (!IsPersonalizedView)
+                {
+                    IsPersonalizedView = true;
+                    CurrentViewMode = "Personalized";
+                }
                 BuildPartitions();
-            }
-            else
-            {
-                // Switch to Personalized view to see it?
-                ToggleView(); 
             }
         }
         
@@ -273,27 +462,75 @@ public partial class FileOrganizerViewModel : ObservableObject
     }
     
     [RelayCommand]
+    private void OpenRenameDialog(PartitionViewModel partition)
+    {
+        if (partition == null) return;
+        _partitionToRename = partition;
+        RenamePartitionName = partition.Name;
+        IsRenameDialogOpen = true;
+    }
+
+    [RelayCommand]
+    private async Task ConfirmRename()
+    {
+        if (_partitionToRename == null || string.IsNullOrWhiteSpace(RenamePartitionName)) 
+        {
+            IsRenameDialogOpen = false;
+            return;
+        }
+
+        string oldName = _partitionToRename.Name;
+        string newName = RenamePartitionName;
+        
+        IsRenameDialogOpen = false; // Close immediately for responsiveness
+
+        if (oldName == newName) return;
+
+        await Task.Run(() => 
+        {
+            using (var context = new AppDbContext())
+            {
+                var p = context.DesktopPartitions.FirstOrDefault(dp => dp.Name == oldName);
+                if (p != null)
+                {
+                    p.Name = newName;
+                    
+                    var prefs = context.DesktopFilePreferences.Where(fp => fp.PartitionName == oldName).ToList();
+                    foreach (var pref in prefs)
+                    {
+                        pref.PartitionName = newName;
+                    }
+                    
+                    context.SaveChanges();
+                }
+            }
+        });
+        
+        BuildPartitions();
+    }
+    
+    [RelayCommand]
+    private void CancelRename()
+    {
+        IsRenameDialogOpen = false;
+    }
+
+    [RelayCommand]
     private void DeletePartition(PartitionViewModel partition)
     {
         if (partition == null) return;
 
-        // Remove from settings
-        if (_settingsService.CurrentSettings.CustomPartitionNames.Contains(partition.Name))
+        using (var context = new AppDbContext())
         {
-            _settingsService.CurrentSettings.CustomPartitionNames.Remove(partition.Name);
-        }
-
-        // Unassign files
-        foreach (var file in partition.Files)
-        {
-            if (_settingsService.CurrentSettings.FilePartitions.ContainsKey(file.Name))
+            var p = context.DesktopPartitions.FirstOrDefault(dp => dp.Name == partition.Name);
+            if (p != null)
             {
-                _settingsService.CurrentSettings.FilePartitions.Remove(file.Name);
+                context.DesktopPartitions.Remove(p);
+                var prefs = context.DesktopFilePreferences.Where(fp => fp.PartitionName == partition.Name);
+                context.DesktopFilePreferences.RemoveRange(prefs);
+                context.SaveChanges();
             }
-            file.CustomPartition = null;
         }
-
-        _settingsService.SaveSettings();
         BuildPartitions();
     }
 
@@ -316,34 +553,246 @@ public partial class FileOrganizerViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            // Handle error
             System.Diagnostics.Debug.WriteLine($"Failed to open file: {ex.Message}");
         }
     }
 
+    public void ReorderPartition(PartitionViewModel source, PartitionViewModel target, bool insertAfter = false)
+    {
+        if (source == null || target == null || source == target) return;
+        if (!IsPersonalizedView) return;
+
+        using (var context = new AppDbContext())
+        {
+            var partitions = context.DesktopPartitions.OrderBy(p => p.OrderIndex).ToList();
+            var srcP = partitions.FirstOrDefault(p => p.Name == source.Name);
+            var tgtP = partitions.FirstOrDefault(p => p.Name == target.Name);
+            
+            if (srcP != null && tgtP != null)
+            {
+                // Determine Target Column and Order
+                int targetColumn = tgtP.ColumnIndex; 
+                
+                // If we are dragging to a different column, update source column
+                if (srcP.ColumnIndex != targetColumn)
+                {
+                    srcP.ColumnIndex = targetColumn;
+                }
+                
+                // Get all partitions in the target column, ordered by index
+                var colPartitions = partitions.Where(p => p.ColumnIndex == targetColumn).OrderBy(p => p.OrderIndex).ToList();
+                
+                // Remove source if it's already in this list (same column move)
+                // Note: We need to remove it first to calculate correct insertion index
+                if (colPartitions.Contains(srcP))
+                {
+                    colPartitions.Remove(srcP);
+                }
+                
+                // Find index of target
+                int targetIndex = colPartitions.IndexOf(tgtP);
+                
+                if (targetIndex != -1)
+                {
+                    if (insertAfter)
+                    {
+                        // Insert AFTER target
+                        if (targetIndex + 1 < colPartitions.Count)
+                            colPartitions.Insert(targetIndex + 1, srcP);
+                        else
+                            colPartitions.Add(srcP);
+                    }
+                    else
+                    {
+                        // Insert BEFORE target
+                        colPartitions.Insert(targetIndex, srcP);
+                    }
+                }
+                else
+                {
+                    // Fallback
+                    colPartitions.Add(srcP);
+                }
+                
+                // Re-index this column
+                for (int i = 0; i < colPartitions.Count; i++)
+                {
+                    colPartitions[i].OrderIndex = i;
+                }
+                
+                // Re-index old column if needed
+                if (source.ColumnIndex != targetColumn)
+                {
+                    var oldColPartitions = partitions.Where(p => p.ColumnIndex == source.ColumnIndex && p != srcP).OrderBy(p => p.OrderIndex).ToList();
+                    for (int i = 0; i < oldColPartitions.Count; i++)
+                    {
+                        oldColPartitions[i].OrderIndex = i;
+                    }
+                }
+                
+                context.SaveChanges();
+            }
+        }
+        BuildPartitions();
+    }
+
+    public void MovePartitionToColumn(PartitionViewModel source, int targetColumn)
+    {
+        if (source == null || !IsPersonalizedView) return;
+        if (source.ColumnIndex == targetColumn) return; // Already in column, no change if just dropped on empty space
+
+        using (var context = new AppDbContext())
+        {
+            var p = context.DesktopPartitions.FirstOrDefault(dp => dp.Name == source.Name);
+            if (p != null)
+            {
+                p.ColumnIndex = targetColumn;
+                
+                // Set order to max + 1
+                var colPartitions = context.DesktopPartitions.Where(dp => dp.ColumnIndex == targetColumn).ToList();
+                int maxOrder = colPartitions.Any() ? colPartitions.Max(dp => dp.OrderIndex) : -1;
+                p.OrderIndex = maxOrder + 1;
+                
+                context.SaveChanges();
+            }
+        }
+        BuildPartitions();
+    }
+
     [RelayCommand]
-    private void AssignToPartition(string partitionName) // Called from context menu usually
+    private void AssignToPartition(string partitionName)
     {
         if (SelectedFile == null) return;
         
-        // Update Model
-        if (string.IsNullOrEmpty(partitionName))
+        using (var context = new AppDbContext())
         {
-             if (_settingsService.CurrentSettings.FilePartitions.ContainsKey(SelectedFile.Name))
-                _settingsService.CurrentSettings.FilePartitions.Remove(SelectedFile.Name);
+            var pref = context.DesktopFilePreferences.FirstOrDefault(fp => fp.FilePath == SelectedFile.Name);
+            
+            if (string.IsNullOrEmpty(partitionName))
+            {
+                if (pref != null) context.DesktopFilePreferences.Remove(pref);
+            }
+            else
+            {
+                if (pref == null)
+                {
+                    pref = new DesktopFilePreference { FilePath = SelectedFile.Name };
+                    context.DesktopFilePreferences.Add(pref);
+                }
+                pref.PartitionName = partitionName;
+                
+                if (!context.DesktopPartitions.Any(dp => dp.Name == partitionName))
+                {
+                    int maxOrder = context.DesktopPartitions.Any() ? context.DesktopPartitions.Max(dp => dp.OrderIndex) : -1;
+                    context.DesktopPartitions.Add(new DesktopPartition { Name = partitionName, OrderIndex = maxOrder + 1 });
+                }
+            }
+            context.SaveChanges();
+        }
+        BuildPartitions();
+    }
+
+    public void ImportFiles(string[] filePaths, string targetPartitionName)
+    {
+        if (filePaths == null || filePaths.Length == 0 || string.IsNullOrEmpty(targetPartitionName)) return;
+
+        string desktopPath = Environment.GetFolderPath(Environment.SpecialFolder.Desktop);
+        bool filesMoved = false;
+
+        using (var context = new AppDbContext())
+        {
+            foreach (var path in filePaths)
+            {
+                if (!System.IO.File.Exists(path) && !System.IO.Directory.Exists(path)) continue;
+
+                string fileName = System.IO.Path.GetFileName(path);
+                string targetPath = System.IO.Path.Combine(desktopPath, fileName);
+
+                string srcDir = System.IO.Path.GetDirectoryName(path)?.TrimEnd(System.IO.Path.DirectorySeparatorChar);
+                string destDir = desktopPath.TrimEnd(System.IO.Path.DirectorySeparatorChar);
+
+                if (!string.Equals(srcDir, destDir, StringComparison.OrdinalIgnoreCase))
+                {
+                    try
+                    {
+                        if (System.IO.File.Exists(targetPath) || System.IO.Directory.Exists(targetPath))
+                        {
+                            string nameWithoutExt = System.IO.Path.GetFileNameWithoutExtension(fileName);
+                            string ext = System.IO.Path.GetExtension(fileName);
+                            fileName = $"{nameWithoutExt}_{DateTime.Now.Ticks}{ext}";
+                            targetPath = System.IO.Path.Combine(desktopPath, fileName);
+                        }
+
+                        if (System.IO.File.Exists(path))
+                        {
+                            System.IO.File.Move(path, targetPath);
+                        }
+                        else if (System.IO.Directory.Exists(path))
+                        {
+                            System.IO.Directory.Move(path, targetPath);
+                        }
+                        filesMoved = true;
+                    }
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"Failed to move file {path}: {ex.Message}");
+                        continue;
+                    }
+                }
+
+                var pref = context.DesktopFilePreferences.FirstOrDefault(fp => fp.FilePath == fileName);
+                if (pref == null)
+                {
+                    pref = new DesktopFilePreference { FilePath = fileName };
+                    context.DesktopFilePreferences.Add(pref);
+                }
+                pref.PartitionName = targetPartitionName;
+            }
+
+            if (!context.DesktopPartitions.Any(dp => dp.Name == targetPartitionName))
+            {
+                 int maxOrder = context.DesktopPartitions.Any() ? context.DesktopPartitions.Max(dp => dp.OrderIndex) : -1;
+                 context.DesktopPartitions.Add(new DesktopPartition { Name = targetPartitionName, OrderIndex = maxOrder + 1 });
+            }
+
+            context.SaveChanges();
+        }
+
+        if (filesMoved)
+        {
+            _ = Refresh();
         }
         else
         {
-             _settingsService.CurrentSettings.FilePartitions[SelectedFile.Name] = partitionName;
-             
-             // Ensure partition exists in list too (auto-create if assigning to new name)
-             if (!_settingsService.CurrentSettings.CustomPartitionNames.Contains(partitionName))
-             {
-                 _settingsService.CurrentSettings.CustomPartitionNames.Add(partitionName);
-             }
+            BuildPartitions();
         }
-        
-        _settingsService.SaveSettings();
-        BuildPartitions();
+    }
+
+    [RelayCommand]
+    private void RestoreDatabase()
+    {
+        var result = System.Windows.MessageBox.Show(
+            "Are you sure you want to restore the database from the latest backup?\nThe application will restart immediately.",
+            "Restore Database",
+            System.Windows.MessageBoxButton.YesNo,
+            System.Windows.MessageBoxImage.Warning);
+
+        if (result == System.Windows.MessageBoxResult.Yes)
+        {
+            try
+            {
+                string exePath = System.Diagnostics.Process.GetCurrentProcess().MainModule.FileName;
+                if (exePath.EndsWith(".dll"))
+                {
+                    exePath = exePath.Replace(".dll", ".exe");
+                }
+                System.Diagnostics.Process.Start(exePath, "--restore");
+                System.Windows.Application.Current.Shutdown();
+            }
+            catch (Exception ex)
+            {
+                 System.Windows.MessageBox.Show($"Failed to restart: {ex.Message}", "Error", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
+            }
+        }
     }
 }

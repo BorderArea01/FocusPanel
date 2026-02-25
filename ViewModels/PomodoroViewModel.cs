@@ -3,6 +3,9 @@ using CommunityToolkit.Mvvm.Input;
 using System;
 using System.Windows.Threading;
 using FocusPanel.Services;
+using FocusPanel.Data;
+using FocusPanel.Models;
+using System.Linq;
 
 namespace FocusPanel.ViewModels;
 
@@ -38,6 +41,45 @@ public partial class PomodoroViewModel : ObservableObject
         _timer.Interval = TimeSpan.FromSeconds(1);
         _timer.Tick += Timer_Tick;
         UpdateDisplay();
+        LoadStats();
+    }
+
+    private void LoadStats()
+    {
+        try
+        {
+            using (var context = new AppDbContext())
+            {
+                // Ensure schema exists just in case viewmodel loads before app (unlikely but safe)
+                context.EnsureSchema();
+                
+                CompletedPomodoros = context.PomodoroSessions.Count(s => s.Status == "Completed");
+                TotalFocusMinutes = context.PomodoroSessions
+                    .Where(s => s.Status == "Completed")
+                    .ToList() // Client evaluation for Sum might be needed if SQLite doesn't support Sum on int? No, Sum works. But safer to materialize if empty.
+                    .Sum(s => s.DurationMinutes);
+            }
+        }
+        catch { }
+    }
+
+    private void SaveSession(int durationMinutes, string status)
+    {
+        try
+        {
+            using (var context = new AppDbContext())
+            {
+                context.PomodoroSessions.Add(new PomodoroSession
+                {
+                    StartTime = DateTime.Now.AddMinutes(-durationMinutes),
+                    EndTime = DateTime.Now,
+                    DurationMinutes = durationMinutes,
+                    Status = status
+                });
+                context.SaveChanges();
+            }
+        }
+        catch { }
     }
 
     private void Timer_Tick(object? sender, EventArgs e)
@@ -51,8 +93,12 @@ public partial class PomodoroViewModel : ObservableObject
         {
             StopTimer();
             StatusMessage = "Time's up!";
+            
+            int duration = (int)_totalTime.TotalMinutes;
+            SaveSession(duration, "Completed");
+            
             CompletedPomodoros++;
-            TotalFocusMinutes += _totalTime.TotalMinutes;
+            TotalFocusMinutes += duration;
             // TODO: Play sound or notify
         }
     }

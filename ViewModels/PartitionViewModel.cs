@@ -20,6 +20,9 @@ public partial class PartitionViewModel : ObservableObject
     // Command to handle file dropping or adding (future)
     // For now, just a container.
     
+    [ObservableProperty]
+    private int columnIndex; // 0 or 1
+
     public PartitionViewModel(string name)
     {
         Name = name;

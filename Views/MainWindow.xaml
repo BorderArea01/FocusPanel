@@ -84,8 +84,10 @@
                     BorderBrush="{DynamicResource MaterialDesignDivider}"
                     BorderThickness="1,1,0,1"
                     ClipToBounds="True"
+                    AllowDrop="True"
                     MouseEnter="Sidebar_MouseEnter"
-                    MouseLeave="Sidebar_MouseLeave"
+                    DragEnter="Sidebar_DragEnter"
+                    DragLeave="Sidebar_DragLeave"
                     IsKeyboardFocusWithinChanged="Sidebar_IsKeyboardFocusWithinChanged">
  
                 <Grid Width="800" HorizontalAlignment="Left">
@@ -97,16 +99,22 @@
                     <!-- Header / Drag Area -->
                     <Grid x:Name="HeaderGrid" Grid.Row="0" Margin="20,15,15,10" Opacity="0">
                         <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
                         
-                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <!-- Collapse Button -->
+                        <Button Style="{StaticResource MaterialDesignIconForegroundButton}" Click="CollapseSidebar_Click" ToolTip="Collapse Sidebar" Height="30" Width="30" Margin="0,0,10,0">
+                            <materialDesign:PackIcon Kind="ChevronRight" Width="24" Height="24"/>
+                        </Button>
+                        
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
                              <materialDesign:PackIcon Kind="ViewDashboardOutline" Width="24" Height="24" VerticalAlignment="Center" Margin="0,0,10,0" Foreground="{DynamicResource PrimaryHueMidBrush}"/>
                              <TextBlock Text="FocusPanel" FontWeight="SemiBold" FontSize="16" VerticalAlignment="Center" Foreground="{DynamicResource MaterialDesignBody}"/>
                         </StackPanel>
                         
-                        <StackPanel Grid.Column="1" Orientation="Horizontal">
+                        <StackPanel Grid.Column="2" Orientation="Horizontal">
                             <Button Style="{StaticResource MaterialDesignIconForegroundButton}" Command="{Binding MinimizeAppCommand}" ToolTip="Minimize" Height="30" Width="30">
                                 <materialDesign:PackIcon Kind="WindowMinimize" Width="18" Height="18"/>
                             </Button>
@@ -141,6 +149,32 @@
                                 <Button Command="{Binding NavigateCommand}" CommandParameter="AI" Style="{StaticResource MaterialDesignFlatButton}" ToolTip="AI Assistant" Padding="10" Margin="0,4" Height="Auto" materialDesign:ButtonAssist.CornerRadius="16">
                                     <materialDesign:PackIcon Kind="Robot" Width="24" Height="24"/>
                                 </Button>
+                                
+                                <Separator Background="{DynamicResource MaterialDesignDivider}" Margin="4,8"/>
+                                
+                                <Grid>
+                                    <ToggleButton x:Name="SettingsToggle" Style="{StaticResource MaterialDesignFlatButton}" ToolTip="Data &amp; Settings" Padding="10" Margin="0,4" Height="Auto" materialDesign:ButtonAssist.CornerRadius="16">
+                                        <materialDesign:PackIcon Kind="DatabaseSettings" Width="24" Height="24"/>
+                                    </ToggleButton>
+                                    <Popup IsOpen="{Binding IsChecked, ElementName=SettingsToggle, Mode=TwoWay}" 
+                                           StaysOpen="False" 
+                                           PlacementTarget="{Binding ElementName=SettingsToggle}" 
+                                           Placement="Right" 
+                                           AllowsTransparency="True"
+                                           PopupAnimation="Fade">
+                                        <materialDesign:Card Margin="8,0,0,0" Padding="8" UniformCornerRadius="8" materialDesign:ShadowAssist.ShadowDepth="Depth2">
+                                            <StackPanel>
+                                                <TextBlock Text="Data Management" Style="{StaticResource MaterialDesignCaptionTextBlock}" Opacity="0.6" Margin="8,4,8,8"/>
+                                                <Button Command="{Binding RestoreDatabaseCommand}" Style="{StaticResource MaterialDesignFlatButton}" HorizontalContentAlignment="Left" Padding="8,4">
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <materialDesign:PackIcon Kind="BackupRestore" Margin="0,0,12,0" Foreground="Orange" VerticalAlignment="Center"/>
+                                                        <TextBlock Text="Restore Database" VerticalAlignment="Center"/>
+                                                    </StackPanel>
+                                                </Button>
+                                            </StackPanel>
+                                        </materialDesign:Card>
+                                    </Popup>
+                                </Grid>
                             </StackPanel>
                         </Border>
 

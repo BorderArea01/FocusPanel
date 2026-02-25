@@ -122,13 +122,20 @@ public partial class TasksViewModel : ObservableObject
         CloseTaskDetail(); 
     }
     
-    async partial void OnSelectedTaskChanged(TodoItem value)
+    async partial void OnSelectedTaskChanged(TodoItem? oldValue, TodoItem newValue)
     {
-        if (value != null)
+        if (oldValue != null)
+        {
+            oldValue.PropertyChanged -= OnTodoItemPropertyChanged;
+        }
+
+        if (newValue != null)
         {
             IsTaskDetailView = true;
-            LoadCurrentTaskCustomFields(value);
-            OpenTaskDetailRequested?.Invoke(value);
+            LoadCurrentTaskCustomFields(newValue);
+            OpenTaskDetailRequested?.Invoke(newValue);
+            
+            newValue.PropertyChanged += OnTodoItemPropertyChanged;
         }
         else
         {
@@ -222,8 +229,33 @@ public partial class TasksViewModel : ObservableObject
         }
         else
         {
-            // Global fields
-            json = _settingsService.CurrentSettings.GlobalCustomFieldsJson;
+            // Global fields (from AppConfig)
+            try
+            {
+                using (var context = new AppDbContext())
+                {
+                    var config = context.AppConfigs.Find("GlobalCustomFieldsJson");
+                    if (config != null)
+                    {
+                        json = config.Value;
+                    }
+                    else
+                    {
+                        // Migration: Load from Settings, and save to DB for next time
+                        json = _settingsService.CurrentSettings.GlobalCustomFieldsJson;
+                        if (!string.IsNullOrEmpty(json))
+                        {
+                            context.AppConfigs.Add(new AppConfig { Key = "GlobalCustomFieldsJson", Value = json });
+                            context.SaveChanges();
+                        }
+                    }
+                }
+            }
+            catch 
+            {
+                // Fallback to settings.json temporarily if DB fails
+                json = _settingsService.CurrentSettings.GlobalCustomFieldsJson;
+            }
         }
 
         if (string.IsNullOrEmpty(json)) return;
@@ -238,7 +270,7 @@ public partial class TasksViewModel : ObservableObject
         }
         catch { }
     }
-
+    
     [RelayCommand]
     private async Task AddCustomField()
     {
@@ -284,7 +316,27 @@ public partial class TasksViewModel : ObservableObject
         }
         else
         {
-            // Save Global
+            // Save Global (to AppConfig)
+            try
+            {
+                using (var context = new AppDbContext())
+                {
+                    var config = await context.AppConfigs.FindAsync("GlobalCustomFieldsJson");
+                    if (config == null)
+                    {
+                        config = new AppConfig { Key = "GlobalCustomFieldsJson", Value = json };
+                        context.AppConfigs.Add(config);
+                    }
+                    else
+                    {
+                        config.Value = json;
+                    }
+                    await context.SaveChangesAsync();
+                }
+            }
+            catch { }
+            
+            // Still save to settings.json as backup/legacy
             _settingsService.CurrentSettings.GlobalCustomFieldsJson = json;
             _settingsService.SaveSettings();
         }

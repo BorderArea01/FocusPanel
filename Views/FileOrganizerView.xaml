@@ -8,13 +8,15 @@
              xmlns:converters="clr-namespace:FocusPanel.Converters"
              mc:Ignorable="d" 
              d:DataContext="{d:DesignInstance Type=vm:FileOrganizerViewModel}"
-             d:DesignHeight="700" d:DesignWidth="450">
+             d:DesignHeight="700" d:DesignWidth="1000">
     <UserControl.Resources>
         <converters:InverseBoolConverter x:Key="InverseBoolConverter"/>
+        <converters:EqualityConverter x:Key="EqualityConverter"/>
         <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter"/>
+        <converters:BindingProxy x:Key="VmProxy" Data="{Binding}" />
 
-        <!-- File Item Style (Cleaner, Windows 11-like) -->
-        <Style x:Key="FileItemContainerStyle" TargetType="Border">
+        <!-- File Item Style (Grid Item) -->
+        <Style x:Key="FileItemStyle" TargetType="Border">
             <EventSetter Event="MouseMove" Handler="FileCard_MouseMove"/>
             <Setter Property="Width" Value="{Binding DataContext.CardWidth, RelativeSource={RelativeSource AncestorType=UserControl}}"/>
             <Setter Property="Height" Value="{Binding DataContext.CardHeight, RelativeSource={RelativeSource AncestorType=UserControl}}"/>
@@ -23,298 +25,493 @@
             <Setter Property="Background" Value="Transparent"/>
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="BorderBrush" Value="Transparent"/>
-            <Setter Property="RenderTransformOrigin" Value="0.5,0.5"/>
             <Style.Triggers>
                 <Trigger Property="IsMouseOver" Value="True">
                     <Setter Property="Background" Value="{DynamicResource MaterialDesignDivider}"/>
-                    <Setter Property="BorderBrush" Value="{DynamicResource PrimaryHueMidBrush}"/>
+                    <Setter Property="BorderBrush" Value="{DynamicResource MaterialDesignDivider}"/>
                 </Trigger>
                 <DataTrigger Binding="{Binding IsSelected}" Value="True">
                     <Setter Property="Background" Value="{DynamicResource PrimaryHueLightBrush}"/>
                     <Setter Property="BorderBrush" Value="{DynamicResource PrimaryHueMidBrush}"/>
-                    <Setter Property="BorderThickness" Value="1"/>
                 </DataTrigger>
             </Style.Triggers>
         </Style>
 
-        <!-- Partition Entrance Animation -->
-        <Style x:Key="PartitionCardStyle" TargetType="Border">
-            <Setter Property="Background" Value="{DynamicResource MaterialDesignPaper}"/>
-            <Setter Property="CornerRadius" Value="8"/>
-            <Setter Property="Margin" Value="0,0,16,16"/>
-            <Setter Property="Padding" Value="0"/>
-            <!-- Removed Fixed Width -->
-            <Setter Property="HorizontalAlignment" Value="Stretch"/>
+        <!-- File List Item Style (List View) -->
+        <Style x:Key="FileListItemStyle" TargetType="Border">
+            <EventSetter Event="MouseMove" Handler="FileCard_MouseMove"/>
+            <Setter Property="Height" Value="32"/>
+            <Setter Property="Margin" Value="0,1"/>
+            <Setter Property="CornerRadius" Value="2"/>
+            <Setter Property="Background" Value="Transparent"/>
             <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="BorderBrush" Value="{DynamicResource MaterialDesignDivider}"/>
-            <Setter Property="Opacity" Value="0"/>
-            <Setter Property="RenderTransformOrigin" Value="0.5,0.5"/>
-            <Setter Property="RenderTransform">
-                <Setter.Value>
-                    <TranslateTransform Y="10"/>
-                </Setter.Value>
-            </Setter>
+            <Setter Property="BorderBrush" Value="Transparent"/>
             <Style.Triggers>
-                <EventTrigger RoutedEvent="Loaded">
-                    <BeginStoryboard>
-                        <Storyboard>
-                            <DoubleAnimation Storyboard.TargetProperty="Opacity" To="1" Duration="0:0:0.3"/>
-                            <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.Y)" To="0" Duration="0:0:0.3">
-                                <DoubleAnimation.EasingFunction>
-                                    <CubicEase EasingMode="EaseOut"/>
-                                </DoubleAnimation.EasingFunction>
-                            </DoubleAnimation>
-                        </Storyboard>
-                    </BeginStoryboard>
-                </EventTrigger>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="{DynamicResource MaterialDesignDivider}"/>
+                </Trigger>
+                <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                    <Setter Property="Background" Value="{DynamicResource PrimaryHueLightBrush}"/>
+                    <Setter Property="BorderBrush" Value="{DynamicResource PrimaryHueMidBrush}"/>
+                </DataTrigger>
             </Style.Triggers>
         </Style>
-    </UserControl.Resources>
 
-    <Grid Margin="16">
-        <Grid.Resources>
-            <converters:BindingProxy x:Key="VmProxy" Data="{Binding}" />
-        </Grid.Resources>
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="*"/>
-        </Grid.RowDefinitions>
+        <!-- Sidebar Button Style (Simplified) -->
+        <Style x:Key="SidebarButtonStyle" TargetType="ButtonBase" BasedOn="{StaticResource MaterialDesignIconButton}">
+            <Setter Property="Width" Value="40"/>
+            <Setter Property="Height" Value="40"/>
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="Margin" Value="0,8"/>
+            <Setter Property="HorizontalAlignment" Value="Center"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+        </Style>
 
-        <!-- Header / Toolbar (Responsive) -->
-        <WrapPanel Grid.Row="0" Margin="0,0,0,16" Orientation="Horizontal">
-            <TextBlock Text="Desktop" Style="{StaticResource MaterialDesignHeadline6TextBlock}" VerticalAlignment="Center" Margin="0,0,16,8" FontWeight="Bold" Foreground="{DynamicResource MaterialDesignBody}"/>
-            
-            <!-- View Mode Switcher -->
-            <Border CornerRadius="20" Background="{DynamicResource MaterialDesignDivider}" Padding="4" Margin="0,0,16,8" VerticalAlignment="Center">
-                <StackPanel Orientation="Horizontal">
-                    <RadioButton Style="{StaticResource MaterialDesignChoiceChipOutlineRadioButton}"
-                                 IsChecked="{Binding IsPersonalizedView}"
-                                 Command="{Binding ToggleViewCommand}"
-                                 Content="Custom"
-                                 ToolTip="Custom Partitions"
-                                 Margin="0,0,4,0"/>
-                    <RadioButton Style="{StaticResource MaterialDesignChoiceChipOutlineRadioButton}"
-                                 IsChecked="{Binding IsPersonalizedView, Converter={StaticResource InverseBoolConverter}}"
-                                 Command="{Binding ToggleViewCommand}"
-                                 Content="Timeline"
-                                 ToolTip="Group by Date"/>
+        <!-- Sidebar PopupBox Style (Unified) -->
+        <Style x:Key="SidebarPopupBoxStyle" TargetType="materialDesign:PopupBox">
+            <Setter Property="Width" Value="40"/>
+            <Setter Property="Height" Value="40"/>
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="Margin" Value="0,8"/>
+            <Setter Property="HorizontalAlignment" Value="Center"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="PlacementMode" Value="RightAndAlignTopEdges"/>
+            <Setter Property="StaysOpen" Value="True"/>
+            <Setter Property="PopupMode" Value="Click"/>
+            <Setter Property="ToolTipService.Placement" Value="Right"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="materialDesign:PopupBox">
+                        <ControlTemplate.Resources>
+                            <Style TargetType="ToggleButton" BasedOn="{StaticResource MaterialDesignIconButton}">
+                                <Setter Property="Width" Value="40"/>
+                                <Setter Property="Height" Value="40"/>
+                                <Setter Property="Padding" Value="0"/>
+                                <Setter Property="Margin" Value="0"/>
+                                <Setter Property="VerticalAlignment" Value="Center"/>
+                                <Setter Property="HorizontalAlignment" Value="Center"/>
+                            </Style>
+                        </ControlTemplate.Resources>
+                        <Grid>
+                            <ToggleButton x:Name="Toggle" 
+                                          Content="{TemplateBinding ToggleContent}" 
+                                          ContentTemplate="{TemplateBinding ToggleContentTemplate}"
+                                          IsChecked="{Binding IsPopupOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}"/>
+                            <Popup x:Name="PART_Popup" 
+                                   AllowsTransparency="True" 
+                                   PlacementTarget="{Binding ElementName=Toggle}"
+                                   Placement="{TemplateBinding PlacementMode}"
+                                   StaysOpen="False"
+                                   IsOpen="{Binding IsPopupOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}">
+                                <materialDesign:Card Content="{TemplateBinding PopupContent}" ContentTemplate="{TemplateBinding PopupContentTemplate}" Margin="5" Padding="8"/>
+                            </Popup>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Standard Icon Style -->
+        <Style x:Key="SidebarIconStyle" TargetType="materialDesign:PackIcon">
+            <Setter Property="Width" Value="24"/>
+            <Setter Property="Height" Value="24"/>
+            <Setter Property="HorizontalAlignment" Value="Center"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="Opacity" Value="0.7"/>
+        </Style>
+
+        <!-- Partition Style (Masonry Card) -->
+        <Style x:Key="MasonryPartitionStyle" TargetType="Border">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0,2,0,0"/>
+            <Setter Property="BorderBrush" Value="Transparent"/>
+            <Setter Property="CornerRadius" Value="8"/>
+            <Setter Property="Margin" Value="0,0,0,16"/>
+            <Setter Property="Padding" Value="0"/>
+            <!-- Auto Height for Content Fit -->
+            <Setter Property="VerticalAlignment" Value="Top"/>
+        </Style>
+
+        <!-- Partition Data Template -->
+        <DataTemplate x:Key="PartitionTemplate">
+            <Border Style="{StaticResource MasonryPartitionStyle}"
+                    AllowDrop="True"
+                    Drop="Partition_Drop"
+                    DragEnter="Partition_DragEnter"
+                    DragOver="Partition_DragOver"
+                    DragLeave="Partition_DragLeave">
+                <StackPanel>
+                    <!-- Header -->
+                    <Grid Background="{DynamicResource MaterialDesignPaper}" Height="40"
+                          AllowDrop="True"
+                          PreviewMouseLeftButtonDown="PartitionHeader_PreviewMouseLeftButtonDown"
+                          PreviewMouseMove="PartitionHeader_PreviewMouseMove"
+                          Drop="PartitionHeader_Drop">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="12,0,0,0">
+                            <TextBlock Text="{Binding Name}" FontWeight="Bold" FontSize="14"/>
+                            <TextBlock Text="{Binding Files.Count}" FontSize="12" Opacity="0.5" Margin="8,0,0,0" VerticalAlignment="Center"/>
+                        </StackPanel>
+
+                        <materialDesign:PopupBox Grid.Column="1" PlacementMode="BottomAndAlignRightEdges" Padding="0" Margin="0,0,8,0" Height="24" Width="24">
+                            <materialDesign:PopupBox.ToggleContent>
+                                <materialDesign:PackIcon Kind="DotsVertical" Width="16" Height="16" Opacity="0.5"/>
+                            </materialDesign:PopupBox.ToggleContent>
+                            <StackPanel>
+                                <Button Command="{Binding DataContext.DeletePartitionCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                        CommandParameter="{Binding}"
+                                        Visibility="{Binding IsCustom, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                        HorizontalAlignment="Left"
+                                        Style="{StaticResource MaterialDesignFlatButton}">
+                                    <TextBlock Text="Delete"/>
+                                </Button>
+                                <Button Command="{Binding DataContext.OpenRenameDialogCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                        CommandParameter="{Binding}"
+                                        HorizontalAlignment="Left"
+                                        Style="{StaticResource MaterialDesignFlatButton}">
+                                    <TextBlock Text="Rename"/>
+                                </Button>
+                            </StackPanel>
+                        </materialDesign:PopupBox>
+                    </Grid>
+                    
+                    <!-- Files Content -->
+                    <ContentControl Content="{Binding}">
+                        <ContentControl.Style>
+                            <Style TargetType="ContentControl">
+                                <Setter Property="ContentTemplate">
+                                    <Setter.Value>
+                                        <!-- Default Grid View -->
+                                        <DataTemplate>
+                                            <ItemsControl ItemsSource="{Binding Files}" Margin="4">
+                                                <ItemsControl.ItemsPanel>
+                                                    <ItemsPanelTemplate>
+                                                        <WrapPanel Orientation="Horizontal" />
+                                                    </ItemsPanelTemplate>
+                                                </ItemsControl.ItemsPanel>
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <Border Style="{StaticResource FileItemStyle}" ToolTip="{Binding FullPath}">
+                                                            <Border.InputBindings>
+                                                                <MouseBinding Gesture="LeftClick" 
+                                                                              Command="{Binding DataContext.SelectFileCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                                              CommandParameter="{Binding}"/>
+                                                                <MouseBinding Gesture="LeftDoubleClick" 
+                                                                              Command="{Binding DataContext.OpenFileCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                                              CommandParameter="{Binding}"/>
+                                                            </Border.InputBindings>
+                                                            <Border.ContextMenu>
+                                                                <ContextMenu>
+                                                                    <MenuItem Header="Open" Command="{Binding DataContext.OpenFileCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}"/>
+                                                                    <MenuItem Header="Move to" ItemsSource="{Binding Data.AllPartitions, Source={StaticResource VmProxy}}">
+                                                                        <MenuItem.ItemContainerStyle>
+                                                                            <Style TargetType="MenuItem" BasedOn="{StaticResource MaterialDesignMenuItem}">
+                                                                                <Setter Property="Header" Value="{Binding Name}"/>
+                                                                                <Setter Property="Command" Value="{Binding Data.AssignToPartitionCommand, Source={StaticResource VmProxy}}"/>
+                                                                                <Setter Property="CommandParameter" Value="{Binding Name}"/>
+                                                                            </Style>
+                                                                        </MenuItem.ItemContainerStyle>
+                                                                    </MenuItem>
+                                                                </ContextMenu>
+                                                            </Border.ContextMenu>
+                                                            
+                                                            <Grid Margin="4">
+                                                                <Grid.RowDefinitions>
+                                                                    <RowDefinition Height="*"/>
+                                                                    <RowDefinition Height="Auto"/>
+                                                                </Grid.RowDefinitions>
+                                                                <Image Grid.Row="0" Source="{Binding Icon}" Width="{Binding DataContext.IconImageSize, RelativeSource={RelativeSource AncestorType=UserControl}}" Height="{Binding DataContext.IconImageSize, RelativeSource={RelativeSource AncestorType=UserControl}}" HorizontalAlignment="Center" VerticalAlignment="Center" RenderOptions.BitmapScalingMode="HighQuality" Margin="0,4"/>
+                                                                <TextBlock Grid.Row="1" Text="{Binding DisplayName}" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" HorizontalAlignment="Center" TextAlignment="Center" FontSize="11" Margin="4,4,4,4" Foreground="{DynamicResource MaterialDesignBody}"/>
+                                                            </Grid>
+                                                        </Border>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                        </DataTemplate>
+                                    </Setter.Value>
+                                </Setter>
+                                <Style.Triggers>
+                                    <!-- List View Template -->
+                                    <DataTrigger Binding="{Binding DataContext.IsListView, RelativeSource={RelativeSource AncestorType=UserControl}}" Value="True">
+                                        <Setter Property="ContentTemplate">
+                                            <Setter.Value>
+                                                <DataTemplate>
+                                                    <ItemsControl ItemsSource="{Binding Files}" Margin="4">
+                                                        <ItemsControl.ItemsPanel>
+                                                            <ItemsPanelTemplate>
+                                                                <StackPanel Orientation="Vertical" />
+                                                            </ItemsPanelTemplate>
+                                                        </ItemsControl.ItemsPanel>
+                                                        <ItemsControl.ItemTemplate>
+                                                            <DataTemplate>
+                                                                <Border Style="{StaticResource FileListItemStyle}" ToolTip="{Binding FullPath}">
+                                                                    <Border.InputBindings>
+                                                                        <MouseBinding Gesture="LeftClick" 
+                                                                                      Command="{Binding DataContext.SelectFileCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                                                      CommandParameter="{Binding}"/>
+                                                                        <MouseBinding Gesture="LeftDoubleClick" 
+                                                                                      Command="{Binding DataContext.OpenFileCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                                                      CommandParameter="{Binding}"/>
+                                                                    </Border.InputBindings>
+                                                                    <Border.ContextMenu>
+                                                                        <ContextMenu>
+                                                                            <MenuItem Header="Open" Command="{Binding DataContext.OpenFileCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}"/>
+                                                                            <MenuItem Header="Move to" ItemsSource="{Binding Data.AllPartitions, Source={StaticResource VmProxy}}">
+                                                                                <MenuItem.ItemContainerStyle>
+                                                                                    <Style TargetType="MenuItem" BasedOn="{StaticResource MaterialDesignMenuItem}">
+                                                                                        <Setter Property="Header" Value="{Binding Name}"/>
+                                                                                        <Setter Property="Command" Value="{Binding Data.AssignToPartitionCommand, Source={StaticResource VmProxy}}"/>
+                                                                                        <Setter Property="CommandParameter" Value="{Binding Name}"/>
+                                                                                    </Style>
+                                                                                </MenuItem.ItemContainerStyle>
+                                                                            </MenuItem>
+                                                                        </ContextMenu>
+                                                                    </Border.ContextMenu>
+                                                                    
+                                                                    <Grid Margin="8,0">
+                                                                        <Grid.ColumnDefinitions>
+                                                                            <ColumnDefinition Width="32"/>
+                                                                            <ColumnDefinition Width="*"/>
+                                                                        </Grid.ColumnDefinitions>
+                                                                        <Image Grid.Column="0" Source="{Binding Icon}" Width="16" Height="16" HorizontalAlignment="Center" VerticalAlignment="Center" RenderOptions.BitmapScalingMode="HighQuality"/>
+                                                                        <TextBlock Grid.Column="1" Text="{Binding DisplayName}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" Margin="8,0,0,0" Foreground="{DynamicResource MaterialDesignBody}"/>
+                                                                    </Grid>
+                                                                </Border>
+                                                            </DataTemplate>
+                                                        </ItemsControl.ItemTemplate>
+                                                    </ItemsControl>
+                                                </DataTemplate>
+                                            </Setter.Value>
+                                        </Setter>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </ContentControl.Style>
+                    </ContentControl>
                 </StackPanel>
             </Border>
+        </DataTemplate>
+    </UserControl.Resources>
 
-            <!-- Partition Creation (Visible in Personalized Mode) -->
-            <StackPanel Orientation="Horizontal" Visibility="{Binding IsPersonalizedView, Converter={StaticResource BooleanToVisibilityConverter}}" Margin="0,0,16,8" VerticalAlignment="Center">
-                    <TextBox Text="{Binding NewPartitionName, UpdateSourceTrigger=PropertyChanged}" 
-                            materialDesign:HintAssist.Hint="New Partition"
-                            Style="{StaticResource MaterialDesignFloatingHintTextBox}"
-                            Width="100" Margin="0,0,8,0" VerticalAlignment="Center"/>
-                <Button Command="{Binding CreatePartitionCommand}" 
-                        Style="{StaticResource MaterialDesignFloatingActionMiniButton}" 
-                        ToolTip="Create Partition"
-                        Width="32" Height="32"
-                        Background="{DynamicResource PrimaryHueMidBrush}"
-                        BorderBrush="{DynamicResource PrimaryHueMidBrush}">
-                    <materialDesign:PackIcon Kind="Plus"/>
-                </Button>
-            </StackPanel>
-            
-            <!-- Right Aligned Tools (Will wrap if needed) -->
-             <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,0,8">
-                <!-- Icon Size Slider -->
-                <Slider Value="{Binding IconScale}" 
-                        Minimum="0.6" Maximum="1.5" 
-                        Width="80" Margin="0,0,16,0" 
-                        VerticalAlignment="Center"
-                        ToolTip="Icon Size"
-                        Style="{StaticResource MaterialDesignDiscreteSlider}"/>
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <!-- Left Sidebar (Tools) -->
+            <ColumnDefinition Width="Auto"/>
+            <!-- Content Area -->
+            <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
 
-                <!-- Refresh Button -->
-                <Button Command="{Binding RefreshCommand}" 
-                        Style="{StaticResource MaterialDesignIconForegroundButton}" 
-                        ToolTip="Refresh Files"
-                        Margin="0,0,8,0">
-                    <materialDesign:PackIcon Kind="Refresh" Width="24" Height="24"/>
-                </Button>
+        <!-- Left Sidebar Toolbar -->
+        <Border Grid.Column="0" 
+                Background="{DynamicResource MaterialDesignPaper}" 
+                BorderThickness="0,0,1,0" 
+                BorderBrush="{DynamicResource MaterialDesignDivider}"
+                Padding="8,16"
+                Width="56"
+                Margin="0,0,16,0">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
 
-                <!-- Show/Hide Desktop Toggle -->
-                <Button Command="{Binding ToggleDesktopCommand}" 
-                        Style="{StaticResource MaterialDesignOutlinedButton}" 
-                        ToolTip="{Binding OrganizeButtonText}"
-                        Margin="0,0,8,0"
-                        Padding="8,0"
-                        Height="32"
-                        BorderThickness="1"
-                        BorderBrush="{DynamicResource PrimaryHueMidBrush}">
-                    <materialDesign:PackIcon Kind="{Binding OrganizeButtonIcon}"/>
-                </Button>
+                <!-- Top: Brand / Home -->
+                <StackPanel Grid.Row="0" HorizontalAlignment="Center">
+                     <materialDesign:PackIcon Kind="ViewDashboard" Style="{StaticResource SidebarIconStyle}" Foreground="{DynamicResource PrimaryHueMidBrush}" Opacity="1" Margin="0,0,0,16"/>
+                </StackPanel>
 
-                <!-- Advanced Tools Menu (Rescue) -->
-                <materialDesign:PopupBox PlacementMode="BottomAndAlignRightEdges"
-                                         ToolTip="Advanced Tools"
-                                         Background="{DynamicResource SecondaryHueMidBrush}"
-                                         BorderBrush="{DynamicResource SecondaryHueMidBrush}"
-                                         Height="32" Width="32">
-                    <materialDesign:PopupBox.ToggleContent>
-                        <materialDesign:PackIcon Kind="ToolboxOutline" Width="20" Height="20" Foreground="White"/>
-                    </materialDesign:PopupBox.ToggleContent>
-                    
-                    <StackPanel>
-                        <Button Command="{Binding RescueCommand}" ToolTip="Group loose files into 'FocusPanel_Recovered'">
-                            <StackPanel Orientation="Horizontal">
-                                <materialDesign:PackIcon Kind="Lifebuoy" Margin="0,0,8,0" Foreground="Red"/>
-                                <TextBlock Text="Emergency Rescue"/>
-                            </StackPanel>
-                        </Button>
-                        <Button Command="{Binding SmartRescueCommand}" ToolTip="Intelligently group files by time and context">
-                            <StackPanel Orientation="Horizontal">
-                                <materialDesign:PackIcon Kind="Brain" Margin="0,0,8,0" Foreground="#673AB7"/>
-                                <TextBlock Text="Smart Grouping"/>
-                            </StackPanel>
-                        </Button>
-                    </StackPanel>
-                </materialDesign:PopupBox>
-            </StackPanel>
-        </WrapPanel>
-
-        <!-- Main Content: List of Partitions (Vertical Stack) -->
-        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" PanningMode="VerticalOnly" HorizontalScrollBarVisibility="Disabled">
-            <ItemsControl ItemsSource="{Binding Partitions}">
-                <ItemsControl.ItemsPanel>
-                    <ItemsPanelTemplate>
-                        <UniformGrid Columns="{Binding PartitionColumns, FallbackValue=1}" VerticalAlignment="Top"/>
-                    </ItemsPanelTemplate>
-                </ItemsControl.ItemsPanel>
-                
-                <ItemsControl.ItemTemplate>
-                    <DataTemplate>
-                        <Border Style="{StaticResource PartitionCardStyle}"
-                                AllowDrop="True"
-                                Drop="Partition_Drop" 
-                                DragEnter="Partition_DragEnter" 
-                                DragLeave="Partition_DragLeave">
-                            <StackPanel>
-                                <!-- Partition Header -->
-                                <Grid Height="48" Background="Transparent">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="Auto"/>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="Auto"/>
-                                    </Grid.ColumnDefinitions>
-                                    
-                                    <!-- Toggle Button (Chevron) -->
-                                    <ToggleButton IsChecked="{Binding IsExpanded}" 
-                                                  Style="{StaticResource MaterialDesignExpandCollapseToggleStyle}" 
-                                                  Width="24" Height="24" 
-                                                  Margin="12,0,0,0"/>
-                                    
-                                    <!-- Title Area -->
-                                    <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Margin="8,0,0,0">
-                                        <TextBlock Text="{Binding Name}" FontWeight="Bold" FontSize="15" VerticalAlignment="Center"/>
-                                        <Border Background="{DynamicResource PrimaryHueLightBrush}" CornerRadius="8" Margin="8,0,0,0" Padding="6,1">
-                                            <TextBlock Text="{Binding Files.Count}" FontSize="11" FontWeight="Bold" Foreground="{DynamicResource PrimaryHueMidBrush}"/>
-                                        </Border>
+                <!-- Middle: Actions -->
+                <StackPanel Grid.Row="1" HorizontalAlignment="Center">
+                    <!-- View Switcher -->
+                    <Grid>
+                        <ToggleButton x:Name="ViewToggle" Style="{StaticResource MaterialDesignIconButton}" Width="40" Height="40" Padding="0" Margin="0,8">
+                            <materialDesign:PackIcon Kind="ViewModule" Style="{StaticResource SidebarIconStyle}"/>
+                        </ToggleButton>
+                        <Popup IsOpen="{Binding IsChecked, ElementName=ViewToggle, Mode=TwoWay}" 
+                               PlacementTarget="{Binding ElementName=ViewToggle}"
+                               Placement="Right"
+                               StaysOpen="False"
+                               AllowsTransparency="True">
+                             <materialDesign:Card Margin="5" Padding="8">
+                                <StackPanel Width="220" Margin="12">
+                                    <!-- View Mode -->
+                                    <TextBlock Text="View Mode" Style="{StaticResource MaterialDesignCaptionTextBlock}" Opacity="0.6" Margin="0,0,0,8"/>
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,16">
+                                        <RadioButton Style="{StaticResource MaterialDesignChoiceChipOutlineRadioButton}"
+                                                     IsChecked="{Binding IsListView, Converter={StaticResource InverseBoolConverter}}"
+                                                     Content="Grid" Margin="0,0,8,0"/>
+                                        <RadioButton Style="{StaticResource MaterialDesignChoiceChipOutlineRadioButton}"
+                                                     IsChecked="{Binding IsListView}"
+                                                     Content="List"/>
                                     </StackPanel>
 
-                                    <!-- Actions Menu -->
-                                    <materialDesign:PopupBox Grid.Column="2" PlacementMode="BottomAndAlignRightEdges" Margin="0,0,8,0">
-                                        <StackPanel>
-                                            <Button Command="{Binding DataContext.DeletePartitionCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                                    CommandParameter="{Binding}"
-                                                    Visibility="{Binding IsCustom, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                                <StackPanel Orientation="Horizontal">
-                                                    <materialDesign:PackIcon Kind="TrashCanOutline" Margin="0,0,8,0"/>
-                                                    <TextBlock Text="Delete Partition"/>
-                                                </StackPanel>
-                                            </Button>
-                                            <Button>
-                                                <StackPanel Orientation="Horizontal">
-                                                    <materialDesign:PackIcon Kind="RenameBox" Margin="0,0,8,0"/>
-                                                    <TextBlock Text="Rename (Coming Soon)"/>
-                                                </StackPanel>
-                                            </Button>
-                                        </StackPanel>
-                                    </materialDesign:PopupBox>
-                                </Grid>
-                                
-                                <!-- Partition Content -->
-                                <ScrollViewer Visibility="{Binding IsExpanded, Converter={StaticResource BooleanToVisibilityConverter}}" 
-                                              MaxHeight="450" 
-                                              VerticalScrollBarVisibility="Auto"
-                                              Margin="4,0,4,8">
-                                    <ItemsControl ItemsSource="{Binding Files}">
-                                        <ItemsControl.ItemsPanel>
-                                            <ItemsPanelTemplate>
-                                                <WrapPanel Orientation="Horizontal" />
-                                            </ItemsPanelTemplate>
-                                        </ItemsControl.ItemsPanel>
-                                        <ItemsControl.ItemTemplate>
-                                            <DataTemplate>
-                                                <Border Style="{StaticResource FileItemContainerStyle}" ToolTip="{Binding FullPath}">
-                                                    <!-- Context Menu -->
-                                                    <Border.ContextMenu>
-                                                        <ContextMenu>
-                                                            <MenuItem Header="Clear Partition" 
-                                                                      Command="{Binding Data.AssignToPartitionCommand, Source={StaticResource VmProxy}}" 
-                                                                      CommandParameter=""/>
-                                                            <Separator/>
-                                                            <MenuItem Header="Move to" ItemsSource="{Binding Data.Partitions, Source={StaticResource VmProxy}}">
-                                                                <MenuItem.ItemContainerStyle>
-                                                                    <Style TargetType="MenuItem" BasedOn="{StaticResource MaterialDesignMenuItem}">
-                                                                        <Setter Property="Header" Value="{Binding Name}"/>
-                                                                        <Setter Property="Command" Value="{Binding Data.AssignToPartitionCommand, Source={StaticResource VmProxy}}"/>
-                                                                        <Setter Property="CommandParameter" Value="{Binding Name}"/>
-                                                                    </Style>
-                                                                </MenuItem.ItemContainerStyle>
-                                                            </MenuItem>
-                                                        </ContextMenu>
-                                                    </Border.ContextMenu>
+                                    <!-- Icon Size -->
+                                    <TextBlock Text="Icon Size" Style="{StaticResource MaterialDesignCaptionTextBlock}" Opacity="0.6" Margin="0,0,0,8"/>
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,16">
+                                        <RadioButton Style="{StaticResource MaterialDesignChoiceChipOutlineRadioButton}"
+                                                     Content="Small"
+                                                     IsChecked="{Binding IconScale, Converter={StaticResource EqualityConverter}, ConverterParameter=0.8}"
+                                                     Command="{Binding SetIconScaleCommand}" CommandParameter="0.8"
+                                                     Margin="0,0,8,0"/>
+                                        <RadioButton Style="{StaticResource MaterialDesignChoiceChipOutlineRadioButton}"
+                                                     Content="Medium"
+                                                     IsChecked="{Binding IconScale, Converter={StaticResource EqualityConverter}, ConverterParameter=1.0}"
+                                                     Command="{Binding SetIconScaleCommand}" CommandParameter="1.0"
+                                                     Margin="0,0,8,0"/>
+                                        <RadioButton Style="{StaticResource MaterialDesignChoiceChipOutlineRadioButton}"
+                                                     Content="Large"
+                                                     IsChecked="{Binding IconScale, Converter={StaticResource EqualityConverter}, ConverterParameter=1.2}"
+                                                     Command="{Binding SetIconScaleCommand}" CommandParameter="1.2"/>
+                                    </StackPanel>
+                                    
+                                    <!-- Partition Mode -->
+                                    <TextBlock Text="Grouping" Style="{StaticResource MaterialDesignCaptionTextBlock}" Opacity="0.6" Margin="0,0,0,8"/>
+                                    <RadioButton Style="{StaticResource MaterialDesignRadioButton}"
+                                                 IsChecked="{Binding IsPersonalizedView}"
+                                                 Command="{Binding ToggleViewCommand}"
+                                                 Content="Custom Partitions" Margin="0,4"/>
+                                    <RadioButton Style="{StaticResource MaterialDesignRadioButton}"
+                                                 IsChecked="{Binding IsPersonalizedView, Converter={StaticResource InverseBoolConverter}}"
+                                                 Command="{Binding ToggleViewCommand}"
+                                                 Content="Timeline" Margin="0,4"/>
+                                </StackPanel>
+                            </materialDesign:Card>
+                        </Popup>
+                    </Grid>
+                    
+                    <!-- Add Partition -->
+                    <Grid Visibility="{Binding IsPersonalizedView, Converter={StaticResource BooleanToVisibilityConverter}}">
+                        <ToggleButton x:Name="AddPartitionToggle" Style="{StaticResource MaterialDesignIconButton}" Width="40" Height="40" Padding="0" Margin="0,8">
+                            <materialDesign:PackIcon Kind="PlusBoxOutline" Style="{StaticResource SidebarIconStyle}"/>
+                        </ToggleButton>
+                        <Popup IsOpen="{Binding IsChecked, ElementName=AddPartitionToggle, Mode=TwoWay}"
+                               PlacementTarget="{Binding ElementName=AddPartitionToggle}"
+                               Placement="Right"
+                               StaysOpen="False"
+                               AllowsTransparency="True">
+                             <materialDesign:Card Margin="5" Padding="8">
+                                <StackPanel Width="200" FocusManager.FocusedElement="{Binding ElementName=PartitionNameBox}">
+                                     <TextBlock Text="New Partition" FontWeight="Bold" Margin="12,12,12,8"/>
+                                     <TextBox x:Name="PartitionNameBox" Text="{Binding NewPartitionName, UpdateSourceTrigger=PropertyChanged}" 
+                                             materialDesign:HintAssist.Hint="Name"
+                                             Style="{StaticResource MaterialDesignOutlinedTextBox}"
+                                             Padding="8" Margin="12,0,12,8"/>
+                                    <Button Command="{Binding CreatePartitionCommand}" Content="Create" Style="{StaticResource MaterialDesignFlatButton}" Margin="12,0,12,12"/>
+                                </StackPanel>
+                            </materialDesign:Card>
+                        </Popup>
+                    </Grid>
 
-                                                    <Border.InputBindings>
-                                                        <MouseBinding Gesture="LeftClick" 
-                                                                      Command="{Binding DataContext.SelectFileCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                                                      CommandParameter="{Binding}"/>
-                                                        <MouseBinding Gesture="LeftDoubleClick" 
-                                                                      Command="{Binding DataContext.OpenFileCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                                                      CommandParameter="{Binding}"/>
-                                                    </Border.InputBindings>
-                                                
-                                                    <Grid Margin="4">
-                                                        <Grid.RowDefinitions>
-                                                            <RowDefinition Height="*"/>
-                                                            <RowDefinition Height="Auto"/>
-                                                        </Grid.RowDefinitions>
-                                                        
-                                                        <!-- Icon -->
-                                                        <Grid Grid.Row="0" Margin="4">
-                                                            <Image Source="{Binding Icon}" 
-                                                                   Width="{Binding DataContext.IconImageSize, RelativeSource={RelativeSource AncestorType=UserControl}}" 
-                                                                   Height="{Binding DataContext.IconImageSize, RelativeSource={RelativeSource AncestorType=UserControl}}" 
-                                                                   HorizontalAlignment="Center" VerticalAlignment="Center" 
-                                                                   RenderOptions.BitmapScalingMode="HighQuality">
-                                                            </Image>
-                                                        </Grid>
+                    <Button Command="{Binding RefreshCommand}" Style="{StaticResource SidebarButtonStyle}" ToolTip="Refresh" HorizontalAlignment="Center">
+                        <materialDesign:PackIcon Kind="Refresh" Style="{StaticResource SidebarIconStyle}"/>
+                    </Button>
+                    
+                    <Button Command="{Binding ToggleDesktopCommand}" Style="{StaticResource SidebarButtonStyle}" ToolTip="{Binding OrganizeButtonText}" HorizontalAlignment="Center">
+                        <materialDesign:PackIcon Kind="{Binding OrganizeButtonIcon}" Style="{StaticResource SidebarIconStyle}"/>
+                    </Button>
+                </StackPanel>
 
-                                                        <!-- Footer Info -->
-                                                        <TextBlock Grid.Row="1" 
-                                                                   Text="{Binding DisplayName}" 
-                                                                   TextTrimming="CharacterEllipsis" 
-                                                                   TextWrapping="NoWrap" 
-                                                                   HorizontalAlignment="Center" 
-                                                                   TextAlignment="Center" 
-                                                                   FontWeight="Regular" 
-                                                                   FontSize="11"
-                                                                   Margin="0,4,0,0"
-                                                                   Foreground="{DynamicResource MaterialDesignBody}"/>
-                                                    </Grid>
-                                                </Border>
-                                            </DataTemplate>
-                                        </ItemsControl.ItemTemplate>
-                                    </ItemsControl>
-                                </ScrollViewer>
-                            </StackPanel>
-                        </Border>
-                    </DataTemplate>
-                </ItemsControl.ItemTemplate>
-            </ItemsControl>
+                <!-- Bottom: Advanced -->
+                <StackPanel Grid.Row="2" HorizontalAlignment="Center">
+                     <Grid>
+                        <ToggleButton x:Name="RescueToggle" Style="{StaticResource MaterialDesignIconButton}" Width="40" Height="40" Padding="0" Margin="0,8">
+                             <materialDesign:PackIcon Kind="ToolboxOutline" Style="{StaticResource SidebarIconStyle}"/>
+                        </ToggleButton>
+                        <Popup IsOpen="{Binding IsChecked, ElementName=RescueToggle, Mode=TwoWay}"
+                               PlacementTarget="{Binding ElementName=RescueToggle}"
+                               Placement="Right"
+                               StaysOpen="False"
+                               AllowsTransparency="True">
+                             <materialDesign:Card Margin="5" Padding="16">
+                                <StackPanel>
+                                    <TextBlock Text="Rescue Tools" Style="{StaticResource MaterialDesignCaptionTextBlock}" Opacity="0.6" Margin="0,0,0,12"/>
+                                    
+                                    <Button Command="{Binding RescueCommand}" Style="{StaticResource MaterialDesignOutlinedButton}" Margin="0,0,0,8" HorizontalContentAlignment="Left" Padding="8" BorderBrush="{DynamicResource MaterialDesignDivider}">
+                                        <Grid Width="150">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="32"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+                                            <materialDesign:PackIcon Kind="Lifebuoy" Width="20" Height="20" Foreground="#F44336" VerticalAlignment="Center" HorizontalAlignment="Center"/>
+                                            <TextBlock Grid.Column="1" Text="Rescue Desktop" VerticalAlignment="Center" Margin="4,0,0,0"/>
+                                        </Grid>
+                                    </Button>
+                                    
+                                    <Button Command="{Binding SmartRescueCommand}" Style="{StaticResource MaterialDesignOutlinedButton}" HorizontalContentAlignment="Left" Padding="8" BorderBrush="{DynamicResource MaterialDesignDivider}">
+                                        <Grid Width="150">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="32"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+                                            <materialDesign:PackIcon Kind="Brain" Width="20" Height="20" Foreground="#673AB7" VerticalAlignment="Center" HorizontalAlignment="Center"/>
+                                            <TextBlock Grid.Column="1" Text="Smart Grouping" VerticalAlignment="Center" Margin="4,0,0,0"/>
+                                        </Grid>
+                                    </Button>
+                                </StackPanel>
+                            </materialDesign:Card>
+                        </Popup>
+                    </Grid>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- Main Content Area (Masonry Layout) -->
+        <ScrollViewer Grid.Column="1" VerticalScrollBarVisibility="Auto" Padding="16">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                
+                <!-- Column 0 Drop Area -->
+                <Border Grid.Column="0" Background="Transparent" AllowDrop="True" Drop="Column_Drop" Tag="0" Margin="0,0,8,0">
+                    <ItemsControl ItemsSource="{Binding PartitionsCol1}" ItemTemplate="{StaticResource PartitionTemplate}">
+                         <ItemsControl.ItemsPanel>
+                             <ItemsPanelTemplate>
+                                 <StackPanel Orientation="Vertical"/>
+                             </ItemsPanelTemplate>
+                         </ItemsControl.ItemsPanel>
+                    </ItemsControl>
+                </Border>
+                
+                <!-- Column 1 Drop Area -->
+                <Border Grid.Column="1" Background="Transparent" AllowDrop="True" Drop="Column_Drop" Tag="1" Margin="8,0,0,0">
+                    <ItemsControl ItemsSource="{Binding PartitionsCol2}" ItemTemplate="{StaticResource PartitionTemplate}">
+                         <ItemsControl.ItemsPanel>
+                             <ItemsPanelTemplate>
+                                 <StackPanel Orientation="Vertical"/>
+                             </ItemsPanelTemplate>
+                         </ItemsControl.ItemsPanel>
+                    </ItemsControl>
+                </Border>
+            </Grid>
         </ScrollViewer>
+
+        <!-- Rename Dialog Overlay -->
+        <Grid Grid.ColumnSpan="2" 
+              Visibility="{Binding IsRenameDialogOpen, Converter={StaticResource BooleanToVisibilityConverter}}" 
+              Background="#50000000"
+              Panel.ZIndex="999">
+             <materialDesign:Card Width="300" VerticalAlignment="Center" HorizontalAlignment="Center" Padding="16">
+                <StackPanel>
+                    <TextBlock Text="Rename Partition" Style="{StaticResource MaterialDesignHeadline6TextBlock}" Margin="0,0,0,16"/>
+                    <TextBox x:Name="RenameTextBox" 
+                             Text="{Binding RenamePartitionName, UpdateSourceTrigger=PropertyChanged}" 
+                             Style="{StaticResource MaterialDesignOutlinedTextBox}"
+                             materialDesign:HintAssist.Hint="New Name"
+                             Margin="0,0,0,16"
+                             FocusManager.FocusedElement="{Binding RelativeSource={RelativeSource Self}}"/>
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                        <Button Style="{StaticResource MaterialDesignFlatButton}" Content="Cancel" Command="{Binding CancelRenameCommand}" Margin="0,0,8,0"/>
+                        <Button Style="{StaticResource MaterialDesignFlatButton}" Content="Rename" Command="{Binding ConfirmRenameCommand}"/>
+                    </StackPanel>
+                </StackPanel>
+            </materialDesign:Card>
+        </Grid>
     </Grid>
 </UserControl>

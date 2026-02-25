@@ -53,4 +53,9 @@ public class AppSettings
     public string GlobalCustomFieldsJson { get; set; } = string.Empty;
     public Dictionary<string, string> FilePartitions { get; set; } = new Dictionary<string, string>(); // FileName -> PartitionName
     public List<string> CustomPartitionNames { get; set; } = new List<string>(); // Store partition names to persist empty ones
+    
+    // UI Settings
+    public double IconScale { get; set; } = 1.0;
+    public bool IsListView { get; set; } = false;
+    public bool IsPersonalizedView { get; set; } = true;
 }

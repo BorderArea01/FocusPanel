@@ -3,6 +3,7 @@ using System.IO;
 using System.Linq;
 using System.Windows;
 using FocusPanel.Data;
+using FocusPanel.Services;
 using Microsoft.EntityFrameworkCore;
 
 namespace FocusPanel;
@@ -20,37 +21,93 @@ public partial class App : Application
         base.OnStartup(e);
 
         // Set working directory to the application's base directory
-        // This ensures that relative paths (like database file) work correctly regardless of how the app was started
         System.IO.Directory.SetCurrentDirectory(System.AppDomain.CurrentDomain.BaseDirectory);
+
+        var backupService = new DatabaseBackupService();
+
+        // Check for restore flag
+        if (e.Args.Contains("--restore"))
+        {
+            if (backupService.RestoreLatestBackup())
+            {
+                MessageBox.Show("Database restored successfully.", "Restore Complete", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+            else
+            {
+                MessageBox.Show("Failed to restore database from backup.", "Restore Failed", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+        else
+        {
+            // Perform Startup Backup (only if not restoring)
+            backupService.PerformStartupBackup();
+        }
+
+        bool dbInitSuccess = false;
 
         try
         {
             // Initialize Database
             using (var context = new AppDbContext())
             {
-                // Ensure database is created. 
-                // Note: If you change the model significantly, you might need to handle migrations 
-                // or delete the db file manually during development.
                 if (!context.Database.EnsureCreated())
                 {
-                    // Database exists. Check if schema is valid (simple check: try to query Todos)
-                    try 
-                    {
-                        var count = context.Todos.Count(); 
-                    }
-                    catch (Exception)
-                    {
-                        // Schema mismatch likely. Recreate DB.
-                        context.Database.EnsureDeleted();
-                        context.Database.EnsureCreated();
-                    }
+                    // Database exists. Check if schema is valid
+                    context.EnsureSchema();
+                    var count = context.Todos.Count(); 
                 }
+                else
+                {
+                    // New DB created, run any additional setup
+                    context.EnsureSchema();
+                }
+                dbInitSuccess = true;
             }
         }
         catch (Exception ex)
         {
-            MessageBox.Show($"Database Initialization Error: {ex.Message}\nTry deleting focuspanel.db manually.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
             LogException(ex);
+            // Database initialization failed
+        }
+
+        if (!dbInitSuccess)
+        {
+            // Try to recover
+            if (backupService.ArchiveCorruptedDatabase() && backupService.RestoreLatestBackup())
+            {
+                MessageBox.Show("Database corruption detected. Restored from latest backup.", "Database Restored", MessageBoxButton.OK, MessageBoxImage.Information);
+                try
+                {
+                    using (var context = new AppDbContext())
+                    {
+                         var count = context.Todos.Count();
+                         dbInitSuccess = true;
+                    }
+                }
+                catch
+                {
+                    // Restore failed or backup also corrupted
+                }
+            }
+        }
+
+        if (!dbInitSuccess)
+        {
+             // If all else fails, recreate
+             try
+             {
+                 using (var context = new AppDbContext())
+                 {
+                     context.Database.EnsureDeleted();
+                     context.Database.EnsureCreated();
+                 }
+                 MessageBox.Show("Database was corrupted and could not be restored. A new database has been created.", "Database Reset", MessageBoxButton.OK, MessageBoxImage.Warning);
+             }
+             catch (Exception ex)
+             {
+                 MessageBox.Show($"Critical Database Error: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                 LogException(ex);
+             }
         }
     }
 

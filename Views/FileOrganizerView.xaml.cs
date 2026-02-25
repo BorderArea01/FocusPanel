@@ -1,9 +1,11 @@
+using System;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
-using FocusPanel.ViewModels;
+using System.Windows.Media.Animation;
 using FocusPanel.Models;
+using FocusPanel.ViewModels;
 
 namespace FocusPanel.Views;
 
@@ -12,25 +14,7 @@ public partial class FileOrganizerView : UserControl
     public FileOrganizerView()
     {
         InitializeComponent();
-        this.SizeChanged += FileOrganizerView_SizeChanged;
-    }
-
-    private void FileOrganizerView_SizeChanged(object sender, SizeChangedEventArgs e)
-    {
-        if (DataContext is FileOrganizerViewModel vm)
-        {
-            // Simple responsive logic: 
-            // < 500px: 1 column
-            // 500-900px: 2 columns
-            // > 900px: 3 columns
-            // > 1400px: 4 columns
-            
-            double width = e.NewSize.Width;
-            if (width < 500) vm.PartitionColumns = 1;
-            else if (width < 900) vm.PartitionColumns = 2;
-            else if (width < 1400) vm.PartitionColumns = 3;
-            else vm.PartitionColumns = 4;
-        }
+        // Removed SizeChanged handler as we are no longer using UniformGrid with dynamic columns
     }
 
     private void FileCard_MouseMove(object sender, MouseEventArgs e)
@@ -50,7 +34,36 @@ public partial class FileOrganizerView : UserControl
         if (sender is Border border)
         {
             border.BorderBrush = (Brush)FindResource("PrimaryHueMidBrush");
-            border.BorderThickness = new Thickness(2);
+            border.Background = (Brush)FindResource("MaterialDesignPaper"); // Ensure background is opaque for hit testing
+            // Keep thickness same to avoid jitter
+        }
+    }
+
+    private void Partition_DragOver(object sender, DragEventArgs e)
+    {
+        // This is necessary to allow drop
+        e.Effects = DragDropEffects.Move;
+        e.Handled = true;
+        
+        // Visual Feedback for Insertion
+        if (e.Data.GetData(typeof(PartitionViewModel)) is PartitionViewModel source && sender is Border border)
+        {
+             // Determine top or bottom half
+             Point p = e.GetPosition(border);
+             bool isBottom = p.Y > (border.ActualHeight / 2);
+             
+             if (isBottom)
+             {
+                 // Insert After (Bottom Line)
+                 border.BorderBrush = (Brush)FindResource("PrimaryHueMidBrush");
+                 border.BorderThickness = new Thickness(0, 0, 0, 4); 
+             }
+             else
+             {
+                 // Insert Before (Top Line)
+                 border.BorderBrush = (Brush)FindResource("PrimaryHueMidBrush");
+                 border.BorderThickness = new Thickness(0, 4, 0, 0); 
+             }
         }
     }
 
@@ -59,7 +72,8 @@ public partial class FileOrganizerView : UserControl
         if (sender is Border border)
         {
             border.BorderBrush = Brushes.Transparent;
-            border.BorderThickness = new Thickness(0);
+            border.BorderThickness = new Thickness(0, 2, 0, 0); // Restore default
+            border.Background = Brushes.Transparent; 
         }
     }
 
@@ -67,24 +81,96 @@ public partial class FileOrganizerView : UserControl
     {
         if (sender is Border border)
         {
-            border.BorderBrush = Brushes.Transparent;
-            border.BorderThickness = new Thickness(0);
+            // Capture drop position BEFORE clearing style
+            Point p = e.GetPosition(border);
+            bool isBottom = p.Y > (border.ActualHeight / 2);
 
-            if (border.DataContext is PartitionViewModel partition && 
-                DataContext is FileOrganizerViewModel vm &&
-                e.Data.GetData(typeof(DesktopFile)) is DesktopFile file)
+            border.BorderBrush = Brushes.Transparent;
+            border.BorderThickness = new Thickness(0, 2, 0, 0); // Restore default
+            border.Background = Brushes.Transparent;
+
+            // Debug
+            System.Diagnostics.Debug.WriteLine("Partition_Drop Fired");
+
+            if (border.DataContext is PartitionViewModel partition && DataContext is FileOrganizerViewModel vm)
             {
-                // Execute move
-                if (vm.AssignToPartitionCommand.CanExecute(partition.Name))
+                // Case 1: Internal File Move
+                if (e.Data.GetData(typeof(DesktopFile)) is DesktopFile file)
                 {
-                    vm.AssignToPartitionCommand.Execute(partition.Name);
+                    if (vm.AssignToPartitionCommand.CanExecute(partition.Name))
+                    {
+                        vm.AssignToPartitionCommand.Execute(partition.Name);
+                    }
+                }
+                // Case 2: External File Drop (from Explorer)
+                else if (e.Data.GetDataPresent(DataFormats.FileDrop))
+                {
+                    if (e.Data.GetData(DataFormats.FileDrop) is string[] files)
+                    {
+                        vm.ImportFiles(files, partition.Name);
+                    }
+                }
+                // Case 3: Partition Reordering (Dropped ONTO another partition)
+                else if (e.Data.GetData(typeof(PartitionViewModel)) is PartitionViewModel sourcePartition)
+                {
+                     if (sourcePartition != partition)
+                     {
+                         // Pass the insertAfter flag
+                         vm.ReorderPartition(sourcePartition, partition, isBottom);
+                     }
                 }
             }
         }
     }
 
-    private void PopupBox_Unchecked(object sender, RoutedEventArgs e)
+    // Partition Reordering
+    private Point _partitionDragStartPoint;
+
+    private void PartitionHeader_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
-        // Handle popup close if needed
+        _partitionDragStartPoint = e.GetPosition(null);
+    }
+
+    private void PartitionHeader_PreviewMouseMove(object sender, MouseEventArgs e)
+    {
+        if (e.LeftButton == MouseButtonState.Pressed)
+        {
+            Point position = e.GetPosition(null);
+            if (Math.Abs(position.X - _partitionDragStartPoint.X) > SystemParameters.MinimumHorizontalDragDistance ||
+                Math.Abs(position.Y - _partitionDragStartPoint.Y) > SystemParameters.MinimumVerticalDragDistance)
+            {
+                if (sender is FrameworkElement element && element.DataContext is PartitionViewModel partition)
+                {
+                    // Start Drag
+                    DragDrop.DoDragDrop(element, new DataObject(typeof(PartitionViewModel), partition), DragDropEffects.Move);
+                }
+            }
+        }
+    }
+
+    private void PartitionHeader_Drop(object sender, DragEventArgs e)
+    {
+        if (sender is FrameworkElement element && element.DataContext is PartitionViewModel targetPartition &&
+            DataContext is FileOrganizerViewModel vm &&
+            e.Data.GetData(typeof(PartitionViewModel)) is PartitionViewModel sourcePartition)
+        {
+            e.Handled = true; // Mark as handled so it doesn't bubble up to Partition_Drop if they overlap
+            if (sourcePartition != targetPartition)
+            {
+                vm.ReorderPartition(sourcePartition, targetPartition);
+            }
+        }
+    }
+
+    private void Column_Drop(object sender, DragEventArgs e)
+    {
+        if (sender is Border border && border.Tag is string colStr && int.TryParse(colStr, out int targetColumn) &&
+            DataContext is FileOrganizerViewModel vm &&
+            e.Data.GetData(typeof(PartitionViewModel)) is PartitionViewModel sourcePartition)
+        {
+            e.Handled = true;
+            // Move to end of target column
+            vm.MovePartitionToColumn(sourcePartition, targetColumn);
+        }
     }
 }

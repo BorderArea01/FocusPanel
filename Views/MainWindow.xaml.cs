@@ -23,13 +23,17 @@ namespace FocusPanel.Views
             MyNotifyIcon.Icon = SystemIcons.Application;
             
             // Set to Maximized to cover the full screen or desired state
-            // If ShowInTaskbar is false, users might want it Normal or Maximized depending on design.
-            // Keeping it Maximized as per original design.
             WindowStartupLocation = WindowStartupLocation.Manual;
             WindowState = WindowState.Maximized;
             
             Loaded += MainWindow_Loaded;
             Closing += MainWindow_Closing;
+            Deactivated += MainWindow_Deactivated;
+        }
+
+        private void MainWindow_Deactivated(object? sender, EventArgs e)
+        {
+            CollapseSidebar();
         }
 
         private void MainWindow_Loaded(object sender, RoutedEventArgs e)
@@ -50,7 +54,11 @@ namespace FocusPanel.Views
         public void ForceClose()
         {
             _isExit = true;
+            // Dispose NotifyIcon if possible to remove icon from tray immediately
+            if (MyNotifyIcon != null) MyNotifyIcon.Dispose();
+            
             Close();
+            Application.Current.Shutdown();
         }
 
         private void Window_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
@@ -60,6 +68,14 @@ namespace FocusPanel.Views
             {
                 DragMove();
             }
+            // User requested to disable click-to-collapse
+            /*
+            else
+            {
+                // Clicking outside sidebar collapses it
+                CollapseSidebar();
+            }
+            */
         }
 
         private void Sidebar_MouseEnter(object sender, MouseEventArgs e)
@@ -91,6 +107,11 @@ namespace FocusPanel.Views
             CollapseSidebar();
         }
 
+        private void CollapseSidebar_Click(object sender, RoutedEventArgs e)
+        {
+            CollapseSidebar();
+        }
+
         private void CollapseSidebar()
         {
             DoubleAnimation widthAnimation = new DoubleAnimation
@@ -113,7 +134,37 @@ namespace FocusPanel.Views
 
         private void Sidebar_IsKeyboardFocusWithinChanged(object sender, DependencyPropertyChangedEventArgs e)
         {
-            if (!(bool)e.NewValue && !SidebarBorder.IsMouseOver)
+            // Do not auto-collapse on focus lost. User might be interacting with a popup or context menu.
+            // Let MouseLeave handle the collapse logic.
+        }
+
+        private void Sidebar_DragEnter(object sender, DragEventArgs e)
+        {
+            // Expand sidebar on drag enter to allow dropping files into it
+            DoubleAnimation widthAnimation = new DoubleAnimation
+            {
+                To = 800,
+                Duration = new Duration(TimeSpan.FromSeconds(0.3)),
+                AccelerationRatio = 0.2,
+                DecelerationRatio = 0.8
+            };
+            SidebarBorder.BeginAnimation(WidthProperty, widthAnimation);
+
+            DoubleAnimation opacityAnimation = new DoubleAnimation
+            {
+                To = 1,
+                Duration = new Duration(TimeSpan.FromSeconds(0.3))
+            };
+            HeaderGrid.BeginAnimation(OpacityProperty, opacityAnimation);
+            ContentArea.BeginAnimation(OpacityProperty, opacityAnimation);
+        }
+
+        private void Sidebar_DragLeave(object sender, DragEventArgs e)
+        {
+            // Only collapse if we are actually leaving the sidebar, not entering a child
+            // Simple heuristic: check if position is outside bounds
+            var pos = e.GetPosition(SidebarBorder);
+            if (pos.X < 0 || pos.X >= SidebarBorder.ActualWidth || pos.Y < 0 || pos.Y >= SidebarBorder.ActualHeight)
             {
                 CollapseSidebar();
             }

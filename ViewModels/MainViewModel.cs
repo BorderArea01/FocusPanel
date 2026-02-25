@@ -83,4 +83,34 @@ public partial class MainViewModel : ObservableObject
             window.Activate();
         }
     }
+
+    [RelayCommand]
+    private void RestoreDatabase()
+    {
+        var result = MessageBox.Show(
+            "Are you sure you want to restore the database from the latest backup?\n" +
+            "This will recover ALL data (Tasks, Pomodoro, Files, etc.).\n" +
+            "The application will restart immediately.",
+            "Global Database Restore",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Warning);
+
+        if (result == MessageBoxResult.Yes)
+        {
+            try
+            {
+                string exePath = System.Diagnostics.Process.GetCurrentProcess().MainModule.FileName;
+                if (exePath.EndsWith(".dll"))
+                {
+                    exePath = exePath.Replace(".dll", ".exe");
+                }
+                System.Diagnostics.Process.Start(exePath, "--restore");
+                Application.Current.Shutdown();
+            }
+            catch (Exception ex)
+            {
+                 MessageBox.Show($"Failed to restart: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+    }
 }
