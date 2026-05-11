@@ -170,12 +170,13 @@ public partial class FileOrganizerView : UserControl
 
             if (border.DataContext is PartitionViewModel partition && DataContext is FileOrganizerViewModel vm)
             {
-                // Case 1: Internal File Move
+                // Case 1: Internal File Drop — hide from desktop into partition
                 if (e.Data.GetData(typeof(DesktopFile)) is DesktopFile file)
                 {
-                    if (vm.AssignToPartitionCommand.CanExecute(partition.Name))
+                    vm.SelectedFile = file;
+                    if (vm.HideFileToPanelCommand.CanExecute(partition.Name))
                     {
-                        vm.AssignToPartitionCommand.Execute(partition.Name);
+                        vm.HideFileToPanelCommand.Execute(partition.Name);
                     }
                 }
                 // Case 2: External File Drop (from Explorer)

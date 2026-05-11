@@ -1,16 +1,26 @@
 using System;
 using System.ComponentModel;
 using System.Drawing;
+using System.Runtime.InteropServices;
 using System.Windows;
+using System.Windows.Forms;
 using System.Windows.Input;
-using System.Windows.Media.Animation;
 using FocusPanel.ViewModels;
+using Microsoft.Win32;
 
 namespace FocusPanel.Views
 {
     public partial class MainWindow : Window
     {
         private bool _isExit = false;
+        private Screen _currentScreen = null!;
+
+        // Win11 rounded corners for borderless windows
+        [DllImport("dwmapi.dll", PreserveSig = true)]
+        private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int attrValue, int attrSize);
+
+        private const int DWMWA_WINDOW_CORNER_PREFERENCE = 33;
+        private const int DWMWCP_ROUND = 2;
 
         public MainWindow()
         {
@@ -19,16 +29,92 @@ namespace FocusPanel.Views
             viewModel.RequestClose += () => this.ForceClose();
             DataContext = viewModel;
 
-            // Use system icon since App.ico is missing
             MyNotifyIcon.Icon = SystemIcons.Application;
-            
-            // Set to Maximized to cover the full screen or desired state
+
             WindowStartupLocation = WindowStartupLocation.Manual;
-            WindowState = WindowState.Maximized;
-            
+            WindowState = WindowState.Normal;
+
+            // Initial size based on mouse-position screen (refined in Loaded)
+            var initScreen = GetScreenFromMouse();
+            Height = initScreen.WorkingArea.Height * 0.85;
+            Width = 80;
+            PositionAtRightEdge(initScreen);
+
+            Topmost = true;
+            ShowInTaskbar = false;
+
             Loaded += MainWindow_Loaded;
             Closing += MainWindow_Closing;
             Deactivated += MainWindow_Deactivated;
+            LocationChanged += MainWindow_LocationChanged;
+            SystemEvents.DisplaySettingsChanged += (s, e) =>
+            {
+                _currentScreen = null!;
+                RefreshScreenAndReposition();
+            };
+        }
+
+        private Screen GetScreenFromMouse()
+        {
+            var mousePos = System.Windows.Forms.Control.MousePosition;
+            foreach (var screen in Screen.AllScreens)
+            {
+                if (screen.Bounds.Contains(mousePos.X, mousePos.Y))
+                    return screen;
+            }
+            return Screen.PrimaryScreen!;
+        }
+
+        private Screen GetCurrentScreen()
+        {
+            if (_currentScreen != null)
+                return _currentScreen;
+
+            var hwnd = GetWindowHandle();
+            if (hwnd != IntPtr.Zero)
+            {
+                _currentScreen = Screen.FromHandle(hwnd);
+                return _currentScreen;
+            }
+
+            return GetScreenFromMouse();
+        }
+
+        private IntPtr GetWindowHandle()
+        {
+            try { return new System.Windows.Interop.WindowInteropHelper(this).Handle; }
+            catch { return IntPtr.Zero; }
+        }
+
+        private void RefreshScreenAndReposition()
+        {
+            var hwnd = GetWindowHandle();
+            if (hwnd != IntPtr.Zero)
+                _currentScreen = Screen.FromHandle(hwnd);
+            else
+                _currentScreen = GetScreenFromMouse();
+            PositionAtRightEdge(_currentScreen);
+        }
+
+        private void PositionAtRightEdge(Screen screen)
+        {
+            Left = screen.WorkingArea.Right - Width;
+            Top = screen.WorkingArea.Top + (screen.WorkingArea.Height - Height) / 2;
+        }
+
+        private double GetRightEdgeTarget()
+        {
+            var screen = GetCurrentScreen();
+            return screen.WorkingArea.Right;
+        }
+
+        private void MainWindow_LocationChanged(object? sender, EventArgs e)
+        {
+            double expectedLeft = GetRightEdgeTarget() - ActualWidth;
+            if (Math.Abs(Left - expectedLeft) > 10)
+            {
+                Left = expectedLeft;
+            }
         }
 
         private void MainWindow_Deactivated(object? sender, EventArgs e)
@@ -38,7 +124,18 @@ namespace FocusPanel.Views
 
         private void MainWindow_Loaded(object sender, RoutedEventArgs e)
         {
-            this.Topmost = false; 
+            Topmost = true;
+
+            // Get accurate screen from window handle and reposition
+            var hwnd = GetWindowHandle();
+            if (hwnd != IntPtr.Zero)
+            {
+                _currentScreen = Screen.FromHandle(hwnd);
+                PositionAtRightEdge(_currentScreen);
+
+                int cornerPref = DWMWCP_ROUND;
+                DwmSetWindowAttribute(hwnd, DWMWA_WINDOW_CORNER_PREFERENCE, ref cornerPref, sizeof(int));
+            }
         }
 
         private void MainWindow_Closing(object sender, CancelEventArgs e)
@@ -46,64 +143,37 @@ namespace FocusPanel.Views
             if (!_isExit)
             {
                 e.Cancel = true;
-                this.Hide(); // Hide the window
-                // Or: this.WindowState = WindowState.Minimized;
+                this.Hide();
             }
         }
 
         public void ForceClose()
         {
             _isExit = true;
-            // Dispose NotifyIcon if possible to remove icon from tray immediately
             if (MyNotifyIcon != null) MyNotifyIcon.Dispose();
-            
             Close();
-            Application.Current.Shutdown();
+            System.Windows.Application.Current.Shutdown();
         }
 
         private void Window_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {
-            // Allow dragging if not maximized
-            if (WindowState != WindowState.Maximized)
-            {
-                DragMove();
-            }
-            // User requested to disable click-to-collapse
-            /*
-            else
-            {
-                // Clicking outside sidebar collapses it
-                CollapseSidebar();
-            }
-            */
+            // Window stays docked — no dragging
         }
 
-        private void Sidebar_MouseEnter(object sender, MouseEventArgs e)
+        private void Sidebar_MouseEnter(object sender, System.Windows.Input.MouseEventArgs e)
         {
-            DoubleAnimation widthAnimation = new DoubleAnimation
-            {
-                To = 800,
-                Duration = new Duration(TimeSpan.FromSeconds(0.3)),
-                AccelerationRatio = 0.2,
-                DecelerationRatio = 0.8
-            };
-            SidebarBorder.BeginAnimation(WidthProperty, widthAnimation);
+            double rightEdge = GetRightEdgeTarget();
 
-            DoubleAnimation opacityAnimation = new DoubleAnimation
-            {
-                To = 1,
-                Duration = new Duration(TimeSpan.FromSeconds(0.3))
-            };
-            HeaderGrid.BeginAnimation(OpacityProperty, opacityAnimation);
-            ContentArea.BeginAnimation(OpacityProperty, opacityAnimation);
+            SidebarBorder.Width = 800;
+            Width = 800;
+            Left = rightEdge - 800;
+            HeaderGrid.Opacity = 1;
+            ContentArea.Opacity = 1;
         }
 
-        private void Sidebar_MouseLeave(object sender, MouseEventArgs e)
+        private void Sidebar_MouseLeave(object sender, System.Windows.Input.MouseEventArgs e)
         {
-            if (SidebarBorder.IsKeyboardFocusWithin)
-            {
-                return;
-            }
+            if (SidebarBorder.IsKeyboardFocusWithin) return;
             CollapseSidebar();
         }
 
@@ -112,57 +182,28 @@ namespace FocusPanel.Views
             CollapseSidebar();
         }
 
-        private void CollapseSidebar()
+        public void CollapseSidebar()
         {
-            DoubleAnimation widthAnimation = new DoubleAnimation
-            {
-                To = 80,
-                Duration = new Duration(TimeSpan.FromSeconds(0.3)),
-                AccelerationRatio = 0.2,
-                DecelerationRatio = 0.8
-            };
-            SidebarBorder.BeginAnimation(WidthProperty, widthAnimation);
+            double rightEdge = GetRightEdgeTarget();
 
-            DoubleAnimation opacityAnimation = new DoubleAnimation
-            {
-                To = 0,
-                Duration = new Duration(TimeSpan.FromSeconds(0.3))
-            };
-            HeaderGrid.BeginAnimation(OpacityProperty, opacityAnimation);
-            ContentArea.BeginAnimation(OpacityProperty, opacityAnimation);
+            SidebarBorder.Width = 80;
+            Width = 80;
+            Left = rightEdge - 80;
+            HeaderGrid.Opacity = 0;
+            ContentArea.Opacity = 0;
         }
 
         private void Sidebar_IsKeyboardFocusWithinChanged(object sender, DependencyPropertyChangedEventArgs e)
         {
-            // Do not auto-collapse on focus lost. User might be interacting with a popup or context menu.
-            // Let MouseLeave handle the collapse logic.
         }
 
-        private void Sidebar_DragEnter(object sender, DragEventArgs e)
+        private void Sidebar_DragEnter(object sender, System.Windows.DragEventArgs e)
         {
-            // Expand sidebar on drag enter to allow dropping files into it
-            DoubleAnimation widthAnimation = new DoubleAnimation
-            {
-                To = 800,
-                Duration = new Duration(TimeSpan.FromSeconds(0.3)),
-                AccelerationRatio = 0.2,
-                DecelerationRatio = 0.8
-            };
-            SidebarBorder.BeginAnimation(WidthProperty, widthAnimation);
-
-            DoubleAnimation opacityAnimation = new DoubleAnimation
-            {
-                To = 1,
-                Duration = new Duration(TimeSpan.FromSeconds(0.3))
-            };
-            HeaderGrid.BeginAnimation(OpacityProperty, opacityAnimation);
-            ContentArea.BeginAnimation(OpacityProperty, opacityAnimation);
+            Sidebar_MouseEnter(sender, null!);
         }
 
-        private void Sidebar_DragLeave(object sender, DragEventArgs e)
+        private void Sidebar_DragLeave(object sender, System.Windows.DragEventArgs e)
         {
-            // Only collapse if we are actually leaving the sidebar, not entering a child
-            // Simple heuristic: check if position is outside bounds
             var pos = e.GetPosition(SidebarBorder);
             if (pos.X < 0 || pos.X >= SidebarBorder.ActualWidth || pos.Y < 0 || pos.Y >= SidebarBorder.ActualHeight)
             {

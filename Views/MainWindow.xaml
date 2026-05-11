@@ -14,13 +14,13 @@
         TextElement.FontSize="13"
         TextOptions.TextFormattingMode="Ideal"
         TextOptions.TextRenderingMode="Auto"
-        Background="Transparent"
+        Background="#1E1E2E"
         AllowsTransparency="True"
         WindowStyle="None"
         ShowInTaskbar="False"
-        ResizeMode="CanResizeWithGrip"
+        ResizeMode="NoResize"
         FontFamily="{DynamicResource MaterialDesignFont}"
-        Title="{Binding Title}" Height="600" Width="300"
+        Title="{Binding Title}" Height="800"
         MouseLeftButtonDown="Window_MouseLeftButtonDown">
 
     <Window.Resources>
@@ -38,6 +38,9 @@
                     </DataTemplate>
                     <DataTemplate DataType="{x:Type vm:FileOrganizerViewModel}">
                         <local:FileOrganizerView />
+                    </DataTemplate>
+                    <DataTemplate DataType="{x:Type vm:OkrViewModel}">
+                        <local:OkrView />
                     </DataTemplate>
                     <DataTemplate DataType="{x:Type vm:AIAssistantViewModel}">
                         <local:AIAssistantView />
@@ -77,15 +80,16 @@
 
              <!-- Right Sidebar Dock -->
              <Border x:Name="SidebarBorder" Width="80" HorizontalAlignment="Right"
-                    Background="{DynamicResource MaterialDesignPaper}" 
-                    Margin="0,20,0,20" 
-                    CornerRadius="16,0,0,16" 
+                    Background="{DynamicResource MaterialDesignPaper}"
+                    Margin="0,0,0,0"
+                    CornerRadius="0"
                     Effect="{DynamicResource MaterialDesignShadowDepth4}"
                     BorderBrush="{DynamicResource MaterialDesignDivider}"
                     BorderThickness="1,1,0,1"
                     ClipToBounds="True"
                     AllowDrop="True"
                     MouseEnter="Sidebar_MouseEnter"
+                    MouseLeave="Sidebar_MouseLeave"
                     DragEnter="Sidebar_DragEnter"
                     DragLeave="Sidebar_DragLeave"
                     IsKeyboardFocusWithinChanged="Sidebar_IsKeyboardFocusWithinChanged">
@@ -115,7 +119,7 @@
                         </StackPanel>
                         
                         <StackPanel Grid.Column="2" Orientation="Horizontal">
-                            <Button Style="{StaticResource MaterialDesignIconForegroundButton}" Command="{Binding MinimizeAppCommand}" ToolTip="Minimize" Height="30" Width="30">
+                            <Button Style="{StaticResource MaterialDesignIconForegroundButton}" Command="{Binding MinimizeAppCommand}" ToolTip="折叠侧边栏" Height="30" Width="30">
                                 <materialDesign:PackIcon Kind="WindowMinimize" Width="18" Height="18"/>
                             </Button>
                             <Button Style="{StaticResource MaterialDesignIconForegroundButton}" Command="{Binding CloseAppCommand}" ToolTip="Close" Height="30" Width="30" Margin="5,0,0,0">
@@ -145,6 +149,9 @@
                                 </Button>
                                 <Button Command="{Binding NavigateCommand}" CommandParameter="Files" Style="{StaticResource MaterialDesignFlatButton}" ToolTip="Files" Padding="10" Margin="0,4" Height="Auto" materialDesign:ButtonAssist.CornerRadius="16">
                                     <materialDesign:PackIcon Kind="Folder" Width="24" Height="24"/>
+                                </Button>
+                                <Button Command="{Binding NavigateCommand}" CommandParameter="OKR" Style="{StaticResource MaterialDesignFlatButton}" ToolTip="OKR Goals" Padding="10" Margin="0,4" Height="Auto" materialDesign:ButtonAssist.CornerRadius="16">
+                                    <materialDesign:PackIcon Kind="Target" Width="24" Height="24"/>
                                 </Button>
                                 <Button Command="{Binding NavigateCommand}" CommandParameter="AI" Style="{StaticResource MaterialDesignFlatButton}" ToolTip="AI Assistant" Padding="10" Margin="0,4" Height="Auto" materialDesign:ButtonAssist.CornerRadius="16">
                                     <materialDesign:PackIcon Kind="Robot" Width="24" Height="24"/>
