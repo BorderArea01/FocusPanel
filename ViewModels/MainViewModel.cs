@@ -2,6 +2,7 @@ using System;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using FocusPanel.Services;
+using FocusPanel.Views;
 using System.Windows;
 
 namespace FocusPanel.ViewModels;
@@ -19,6 +20,7 @@ public partial class MainViewModel : ObservableObject
 
     private PomodoroViewModel _pomodoroViewModel;
     private FileOrganizerViewModel _fileOrganizerViewModel;
+    private OkrViewModel _okrViewModel;
 
     public MainViewModel()
     {
@@ -52,6 +54,10 @@ public partial class MainViewModel : ObservableObject
                 if (_fileOrganizerViewModel == null) _fileOrganizerViewModel = new FileOrganizerViewModel();
                 CurrentViewModel = _fileOrganizerViewModel;
                 break;
+            case "OKR":
+                if (_okrViewModel == null) _okrViewModel = new OkrViewModel();
+                CurrentViewModel = _okrViewModel;
+                break;
             case "AI":
                 CurrentViewModel = new AIAssistantViewModel();
                 break;
@@ -69,14 +75,36 @@ public partial class MainViewModel : ObservableObject
     [RelayCommand]
     private void MinimizeApp()
     {
-        Application.Current.MainWindow.WindowState = WindowState.Minimized;
+        // 确保窗口保持正常状态，不最小化
+        // 窗口应该始终保持在桌面上
+        var window = Application.Current.MainWindow;
+        if (window != null)
+        {
+            // 使用Dispatcher来确保在UI线程执行
+            window.Dispatcher.Invoke(() =>
+            {
+                // 确保窗口不被最小化，保持正常状态
+                window.WindowState = WindowState.Normal;
+                window.Topmost = true;
+
+                // 调用折叠侧边栏的方法
+                if (window is MainWindow mainWindow)
+                {
+                    mainWindow.CollapseSidebar();
+                }
+            });
+        }
     }
 
     [RelayCommand]
     private void ShowWindow()
     {
         var window = Application.Current.MainWindow;
-        if (window != null)
+        if (window is MainWindow mainWindow)
+        {
+            mainWindow.ShowFromTray();
+        }
+        else if (window != null)
         {
             window.Show();
             window.WindowState = WindowState.Normal;

@@ -2,6 +2,7 @@ using System;
 using System.ComponentModel;
 using System.Drawing;
 using System.Runtime.InteropServices;
+using System.Text;
 using System.Windows;
 using System.Windows.Forms;
 using System.Windows.Input;
@@ -22,6 +23,27 @@ namespace FocusPanel.Views
         private const int DWMWA_WINDOW_CORNER_PREFERENCE = 33;
         private const int DWMWCP_ROUND = 2;
 
+        // Foreground window detection
+        [DllImport("user32.dll")]
+        private static extern IntPtr SetWinEventHook(uint eventMin, uint eventMax, IntPtr hmodWinEventProc,
+            WinEventDelegate lpfnWinEventProc, uint idProcess, uint idThread, uint dwFlags);
+
+        [DllImport("user32.dll")]
+        private static extern bool UnhookWinEvent(IntPtr hWinEventHook);
+
+        [DllImport("user32.dll", CharSet = CharSet.Auto)]
+        private static extern int GetClassName(IntPtr hWnd, StringBuilder lpClassName, int nMaxCount);
+
+        private delegate void WinEventDelegate(IntPtr hWinEventHook, uint eventType, IntPtr hwnd,
+            int idObject, int idChild, uint dwEventThread, uint dwmsEventTime);
+
+        private const uint EVENT_SYSTEM_FOREGROUND = 3;
+        private const uint WINEVENT_OUTOFCONTEXT = 0;
+
+        private IntPtr _winEventHook;
+        private WinEventDelegate _winEventDelegate;
+        private bool _hiddenToTray;
+
         public MainWindow()
         {
             InitializeComponent();
@@ -40,7 +62,6 @@ namespace FocusPanel.Views
             Width = 80;
             PositionAtRightEdge(initScreen);
 
-            Topmost = true;
             ShowInTaskbar = false;
 
             Loaded += MainWindow_Loaded;
@@ -124,8 +145,6 @@ namespace FocusPanel.Views
 
         private void MainWindow_Loaded(object sender, RoutedEventArgs e)
         {
-            Topmost = true;
-
             // Get accurate screen from window handle and reposition
             var hwnd = GetWindowHandle();
             if (hwnd != IntPtr.Zero)
@@ -136,15 +155,38 @@ namespace FocusPanel.Views
                 int cornerPref = DWMWCP_ROUND;
                 DwmSetWindowAttribute(hwnd, DWMWA_WINDOW_CORNER_PREFERENCE, ref cornerPref, sizeof(int));
             }
+
+            // Set up foreground change detection
+            _winEventDelegate = new WinEventDelegate(WinEventProc);
+            _winEventHook = SetWinEventHook(EVENT_SYSTEM_FOREGROUND, EVENT_SYSTEM_FOREGROUND,
+                IntPtr.Zero, _winEventDelegate, 0, 0, WINEVENT_OUTOFCONTEXT);
+
+            // Initial state: check if desktop is currently foreground
+            UpdateVisibilityForForeground();
         }
 
         private void MainWindow_Closing(object sender, CancelEventArgs e)
         {
+            if (_winEventHook != IntPtr.Zero)
+            {
+                UnhookWinEvent(_winEventHook);
+                _winEventHook = IntPtr.Zero;
+            }
+
             if (!_isExit)
             {
                 e.Cancel = true;
+                _hiddenToTray = true;
                 this.Hide();
             }
+        }
+
+        public void ShowFromTray()
+        {
+            _hiddenToTray = false;
+            Show();
+            WindowState = WindowState.Normal;
+            UpdateVisibilityForForeground();
         }
 
         public void ForceClose()
@@ -209,6 +251,64 @@ namespace FocusPanel.Views
             {
                 CollapseSidebar();
             }
+        }
+
+        // --- Desktop-only visibility ---
+
+        private void WinEventProc(IntPtr hWinEventHook, uint eventType, IntPtr hwnd,
+            int idObject, int idChild, uint dwEventThread, uint dwmsEventTime)
+        {
+            Dispatcher.Invoke(() => UpdateVisibilityForForeground());
+        }
+
+        [DllImport("user32.dll")]
+        private static extern IntPtr GetForegroundWindow();
+
+        private void UpdateVisibilityForForeground()
+        {
+            IntPtr fg = GetForegroundWindow();
+            if (fg == IntPtr.Zero)
+            {
+                ShowOnDesktop();
+                return;
+            }
+
+            if (fg == GetWindowHandle())
+            {
+                ShowOnDesktop();
+                return;
+            }
+
+            var sb = new StringBuilder(256);
+            GetClassName(fg, sb, 256);
+            string cls = sb.ToString();
+
+            if (cls == "Progman" || cls == "WorkerW" || cls == "Shell_TrayWnd")
+            {
+                ShowOnDesktop();
+            }
+            else
+            {
+                HideFromApps();
+            }
+        }
+
+        private void ShowOnDesktop()
+        {
+            if (_hiddenToTray) return;
+            if (Visibility == Visibility.Visible) return;
+
+            Visibility = Visibility.Visible;
+            Topmost = true;
+            CollapseSidebar();
+        }
+
+        private void HideFromApps()
+        {
+            if (SidebarBorder.IsKeyboardFocusWithin) return;
+            if (Visibility != Visibility.Visible) return;
+
+            Visibility = Visibility.Collapsed;
         }
     }
 }
