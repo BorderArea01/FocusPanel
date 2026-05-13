@@ -3,6 +3,7 @@ using System.ComponentModel;
 using System.Drawing;
 using System.Runtime.InteropServices;
 using System.Text;
+using System.Threading;
 using System.Windows;
 using System.Windows.Forms;
 using System.Windows.Input;
@@ -140,7 +141,6 @@ namespace FocusPanel.Views
 
         private void MainWindow_Deactivated(object? sender, EventArgs e)
         {
-            CollapseSidebar();
         }
 
         private void MainWindow_Loaded(object sender, RoutedEventArgs e)
@@ -197,11 +197,6 @@ namespace FocusPanel.Views
             System.Windows.Application.Current.Shutdown();
         }
 
-        private void Window_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
-        {
-            // Window stays docked — no dragging
-        }
-
         private void Sidebar_MouseEnter(object sender, System.Windows.Input.MouseEventArgs e)
         {
             double rightEdge = GetRightEdgeTarget();
@@ -235,10 +230,6 @@ namespace FocusPanel.Views
             ContentArea.Opacity = 0;
         }
 
-        private void Sidebar_IsKeyboardFocusWithinChanged(object sender, DependencyPropertyChangedEventArgs e)
-        {
-        }
-
         private void Sidebar_DragEnter(object sender, System.Windows.DragEventArgs e)
         {
             Sidebar_MouseEnter(sender, null!);
@@ -255,10 +246,22 @@ namespace FocusPanel.Views
 
         // --- Desktop-only visibility ---
 
+        private int _pendingUpdates;
+
         private void WinEventProc(IntPtr hWinEventHook, uint eventType, IntPtr hwnd,
             int idObject, int idChild, uint dwEventThread, uint dwmsEventTime)
         {
-            Dispatcher.Invoke(() => UpdateVisibilityForForeground());
+            if (Interlocked.Increment(ref _pendingUpdates) > 1)
+            {
+                Interlocked.Decrement(ref _pendingUpdates);
+                return;
+            }
+
+            Dispatcher.BeginInvoke(() =>
+            {
+                Interlocked.Exchange(ref _pendingUpdates, 0);
+                UpdateVisibilityForForeground();
+            }, System.Windows.Threading.DispatcherPriority.Background);
         }
 
         [DllImport("user32.dll")]
@@ -308,6 +311,7 @@ namespace FocusPanel.Views
             if (SidebarBorder.IsKeyboardFocusWithin) return;
             if (Visibility != Visibility.Visible) return;
 
+            Topmost = false;
             Visibility = Visibility.Collapsed;
         }
     }

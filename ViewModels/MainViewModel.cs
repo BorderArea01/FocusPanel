@@ -83,9 +83,7 @@ public partial class MainViewModel : ObservableObject
             // 使用Dispatcher来确保在UI线程执行
             window.Dispatcher.Invoke(() =>
             {
-                // 确保窗口不被最小化，保持正常状态
                 window.WindowState = WindowState.Normal;
-                window.Topmost = true;
 
                 // 调用折叠侧边栏的方法
                 if (window is MainWindow mainWindow)

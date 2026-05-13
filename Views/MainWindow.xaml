@@ -21,7 +21,7 @@
         ResizeMode="NoResize"
         FontFamily="{DynamicResource MaterialDesignFont}"
         Title="{Binding Title}" Height="800"
-        MouseLeftButtonDown="Window_MouseLeftButtonDown">
+        Visibility="Collapsed">
 
     <Window.Resources>
         <ResourceDictionary>
@@ -91,8 +91,7 @@
                     MouseEnter="Sidebar_MouseEnter"
                     MouseLeave="Sidebar_MouseLeave"
                     DragEnter="Sidebar_DragEnter"
-                    DragLeave="Sidebar_DragLeave"
-                    IsKeyboardFocusWithinChanged="Sidebar_IsKeyboardFocusWithinChanged">
+                    DragLeave="Sidebar_DragLeave">
  
                 <Grid Width="800" HorizontalAlignment="Left">
                     <Grid.RowDefinitions>
