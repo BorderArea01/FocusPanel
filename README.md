@@ -22,11 +22,13 @@
 - 看板和列表双视图
 - 自定义字段（文本、日期、下拉等）
 - 任务状态流转
+![Task Manager Detail](images/taskmanager_detail.png)
 
 ### 番茄钟
 - 工作 / 短休息 / 长休息 状态切换
 - 专注时长统计与记录
 - 独立悬浮窗模式
+![Pomodoro Timer](images/pomodoro_desktop.png)
 
 ### OKR 目标管理
 - 创建和管理 Objectives 与 Key Results
